@@ -54,7 +54,7 @@ export class NotifierService {
       return;
     }
 
-    // Format Crime Scene for Slack
+    // Parse Crime Scene processes
     const procs = this.parseCrimeScene(alert.process_snapshot);
     let crimeSceneText = 'No snapshot captured';
     if (procs.length > 0) {
@@ -64,32 +64,26 @@ export class NotifierService {
         .join('\n');
     }
 
+    // High-compatibility Slack payload (works with all Slack workspaces)
     const payload = {
-      text: `🚨 SentinelOps: ${alert.severity.toUpperCase()} on ${alert.entity_id}`,
-      attachments: [
-        {
-          color: alert.severity === 'critical' ? '#ef4444' : '#f59e0b',
-          fields: [
-            { title: 'Rule', value: alert.rule_name, short: true },
-            { title: 'Severity', value: alert.severity.toUpperCase(), short: true },
-            { title: 'Entity', value: alert.entity_id, short: true },
-            { title: 'Correlation ID', value: alert.correlation_id || 'N/A', short: true },
-            { title: 'Summary', value: alert.summary, short: false },
-            { title: '📸 Crime Scene Top Culprits', value: `\`\`\`${crimeSceneText}\`\`\``, short: false }
-          ]
-        }
-      ]
+      text: `🚨 *SentinelOps Alert: ${alert.severity.toUpperCase()}* on \`${alert.entity_id}\`\n*Rule:* ${alert.rule_name}\n*Summary:* ${alert.summary}\n*Correlation ID:* \`${alert.correlation_id || 'N/A'}\` (Seen: ${alert.hit_count}x)\n\n*📸 Crime Scene Forensics:*\n\`\`\`${crimeSceneText}\`\`\``
     };
 
     try {
-      await fetch(slackUrl, {
+      const res = await fetch(slackUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      console.log(`[NOTIFIER] Sent Slack alert with Crime Scene for ${alert.rule_name}`);
+      
+      const responseBody = await res.text();
+      if (!res.ok) {
+        console.error(`[!] Slack API rejected payload (${res.status}): ${responseBody}`);
+      } else {
+        console.log(`[NOTIFIER] ✅ Slack notification delivered successfully for ${alert.rule_name}`);
+      }
     } catch (err) {
-      console.error('[!] Slack dispatch failed:', err.message);
+      console.error('[!] Slack network dispatch failed:', err.message);
     }
   }
 
