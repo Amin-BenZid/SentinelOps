@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# Production builds
+dist/
+
+# Local Database & Logs
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.log
+
+# Environment variables
+.env

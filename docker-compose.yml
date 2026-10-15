@@ -1,0 +1,49 @@
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    container_name: sentinelops-agent
+    restart: unless-stopped
+    pid: "host"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - sentinelops_data:/data
+      - ./agent/config/rules.yaml:/app/agent/config/rules.yaml:ro
+    environment:
+      - DB_PATH=/data/sentinelops.db
+    networks:
+      - sentinel-net
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    container_name: sentinelops-dashboard
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    volumes:
+      - sentinelops_data:/data
+      # Mount Docker socket for live logs and restart operations
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - PORT=4000
+      - DB_PATH=/data/sentinelops.db
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-}
+    depends_on:
+      - agent
+    networks:
+      - sentinel-net
+
+volumes:
+  sentinelops_data:
+
+networks:
+  sentinel-net:
+    driver: bridge

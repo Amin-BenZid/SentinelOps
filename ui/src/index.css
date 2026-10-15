@@ -1,0 +1,289 @@
+/* ── GITHUB PRIMER DESIGN TOKENS ── */
+:root, [data-theme="dark"] {
+  --color-canvas-default: #0d1117;
+  --color-canvas-subtle: #161b22;
+  --color-canvas-inset: #010409;
+  --color-border-default: #30363d;
+  --color-border-muted: #21262d;
+  
+  --color-fg-default: #e6edf3;
+  --color-fg-muted: #7d8590;
+  --color-fg-subtle: #484f58;
+  
+  --color-accent-fg: #2f81f7;
+  --color-accent-emphasis: #1f6feb;
+  --color-accent-subtle: rgba(56, 139, 253, 0.15);
+  
+  --color-success-fg: #3fb950;
+  --color-success-emphasis: #238636;
+  --color-success-subtle: rgba(46, 160, 67, 0.15);
+  
+  --color-attention-fg: #d29922;
+  --color-attention-subtle: rgba(187, 128, 9, 0.15);
+  
+  --color-danger-fg: #f85149;
+  --color-danger-emphasis: #da3633;
+  --color-danger-subtle: rgba(248, 81, 73, 0.15);
+
+  --color-btn-bg: #21262d;
+  --color-btn-border: #30363d;
+  --color-btn-hover-bg: #30363d;
+  --color-btn-hover-border: #8b949e;
+
+  --color-input-bg: #0d1117;
+  --color-input-border: #30363d;
+
+  --chart-grid: #21262d;
+  --chart-tooltip-bg: #161b22;
+}
+
+[data-theme="light"] {
+  --color-canvas-default: #ffffff;
+  --color-canvas-subtle: #f6f8fa;
+  --color-canvas-inset: #f6f8fa;
+  --color-border-default: #d0d7de;
+  --color-border-muted: #afb8c133;
+  
+  --color-fg-default: #1f2328;
+  --color-fg-muted: #656d76;
+  --color-fg-subtle: #8c959f;
+  
+  --color-accent-fg: #0969da;
+  --color-accent-emphasis: #0969da;
+  --color-accent-subtle: #ddf4ff;
+  
+  --color-success-fg: #1a7f37;
+  --color-success-emphasis: #1f883d;
+  --color-success-subtle: #dafbe1;
+  
+  --color-attention-fg: #9a6700;
+  --color-attention-subtle: #fff8c5;
+  
+  --color-danger-fg: #cf222e;
+  --color-danger-emphasis: #cf222e;
+  --color-danger-subtle: #ffebe9;
+
+  --color-btn-bg: #f6f8fa;
+  --color-btn-border: rgba(31, 35, 40, 0.15);
+  --color-btn-hover-bg: #f3f4f6;
+  --color-btn-hover-border: rgba(31, 35, 40, 0.15);
+
+  --color-input-bg: #ffffff;
+  --color-input-border: #d0d7de;
+
+  --chart-grid: #e1e4e8;
+  --chart-tooltip-bg: #ffffff;
+}
+
+/* ── BASE TYPOGRAPHY & RESET ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  background-color: var(--color-canvas-default);
+  color: var(--color-fg-default);
+  min-height: 100vh;
+  line-height: 1.5;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+code, pre, .mono {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-container {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 16px 24px 48px;
+}
+
+/* ── GITHUB HEADER & SUBNAV ── */
+.gh-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.gh-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.gh-breadcrumb a {
+  color: var(--color-accent-fg);
+  text-decoration: none;
+}
+
+.gh-breadcrumb span.slash {
+  color: var(--color-fg-muted);
+  font-weight: 400;
+}
+
+.gh-nav-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border-default);
+  margin-bottom: 24px;
+}
+
+.gh-nav-item {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-fg-muted);
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+
+.gh-nav-item:hover {
+  color: var(--color-fg-default);
+}
+
+.gh-nav-item.active {
+  color: var(--color-fg-default);
+  font-weight: 600;
+  border-bottom-color: #fd8c73;
+}
+
+.gh-counter {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: 20px;
+  background-color: var(--color-border-muted);
+  color: var(--color-fg-default);
+}
+
+/* ── GITHUB BOX / CARD COMPONENT ── */
+.gh-box {
+  background-color: var(--color-canvas-default);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+
+.gh-box-header {
+  background-color: var(--color-canvas-subtle);
+  border-bottom: 1px solid var(--color-border-default);
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+.gh-box-body {
+  padding: 16px;
+}
+
+/* ── PRIMER BUTTONS ── */
+.gh-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  line-height: 20px;
+  border-radius: 6px;
+  border: 1px solid var(--color-btn-border);
+  background-color: var(--color-btn-bg);
+  color: var(--color-fg-default);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.12s, border-color 0.12s;
+}
+
+.gh-btn:hover {
+  background-color: var(--color-btn-hover-bg);
+  border-color: var(--color-btn-hover-border);
+}
+
+.gh-btn-primary {
+  background-color: var(--color-success-emphasis);
+  border-color: rgba(31, 35, 40, 0.15);
+  color: #ffffff;
+}
+
+.gh-btn-primary:hover {
+  background-color: #2c974b;
+}
+
+.gh-btn-danger {
+  color: var(--color-danger-fg);
+}
+
+.gh-btn-danger:hover {
+  background-color: var(--color-danger-emphasis);
+  color: #ffffff;
+  border-color: rgba(31, 35, 40, 0.15);
+}
+
+/* ── PRIMER FORM CONTROLS ── */
+.gh-input, .gh-select {
+  background-color: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: 6px;
+  color: var(--color-fg-default);
+  padding: 5px 12px;
+  font-size: 0.875rem;
+  line-height: 20px;
+  outline: none;
+}
+
+.gh-input:focus, .gh-select:focus {
+  border-color: var(--color-accent-emphasis);
+  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.3);
+}
+
+/* ── GITHUB BADGES ── */
+.gh-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 7px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: 2em;
+  border: 1px solid transparent;
+}
+
+.gh-badge-success {
+  background-color: var(--color-success-subtle);
+  color: var(--color-success-fg);
+  border-color: rgba(46, 160, 67, 0.4);
+}
+
+.gh-badge-danger {
+  background-color: var(--color-danger-subtle);
+  color: var(--color-danger-fg);
+  border-color: rgba(248, 81, 73, 0.4);
+}
+
+.gh-badge-attention {
+  background-color: var(--color-attention-subtle);
+  color: var(--color-attention-fg);
+  border-color: rgba(187, 128, 9, 0.4);
+}

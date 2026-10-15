@@ -1,0 +1,27 @@
+version: "0.1"
+scan_interval_seconds: 5
+
+rules:
+  - id: "host_high_cpu"
+    metric: "cpu_percent"
+    operator: ">"
+    threshold: 85.0
+    duration_seconds: 60
+    severity: "critical"
+    summary: "Host CPU utilization exceeded 85%"
+
+  - id: "host_high_mem"
+    metric: "memory_percent"
+    operator: ">"
+    threshold: 80.0
+    duration_seconds: 60
+    severity: "warning"
+    summary: "Host RAM utilization is over 80%"
+
+  - id: "docker_container_oom"
+    metric: "docker_memory_percent"
+    operator: ">"
+    threshold: 90.0
+    duration_seconds: 30
+    severity: "critical"
+    summary: "Container memory threshold saturated"
