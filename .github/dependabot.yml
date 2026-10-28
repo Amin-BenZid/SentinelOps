@@ -1,0 +1,27 @@
+# Opens weekly pull requests for outdated / vulnerable dependencies.
+# CI runs on each PR, so an update is merged only if the tests still pass.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /server
+    schedule: { interval: weekly }
+    groups:
+      server-deps: { patterns: ["*"] }
+
+  - package-ecosystem: npm
+    directory: /ui
+    schedule: { interval: weekly }
+    groups:
+      ui-deps: { patterns: ["*"] }
+
+  - package-ecosystem: pip
+    directory: /agent
+    schedule: { interval: weekly }
+
+  - package-ecosystem: docker
+    directories: ["/agent", "/server"]
+    schedule: { interval: weekly }
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
