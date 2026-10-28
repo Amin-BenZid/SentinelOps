@@ -2,10 +2,11 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShieldAlert, GitCommit, Camera, ChevronDown, ChevronRight, 
   AlertOctagon, CheckCheck, RotateCcw, Search, Terminal, Eye,
-  Clock, FileText
+  Clock, FileText, HelpCircle
 } from 'lucide-react';
 import { Alert, ProcessInfo } from '../types';
 import { buildTimeline, generatePostMortemMarkdown, TimelineEvent } from '../utils/postMortemGenerator';
+import { explainAlert } from '../utils/diagnosis';
 
 interface AlertFeedProps {
   alerts: Alert[];
@@ -22,6 +23,7 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
 }) => {
   const [expandedCrimeId, setExpandedCrimeId] = useState<number | null>(null);
   const [expandedTimelineId, setExpandedTimelineId] = useState<number | null>(null);
+  const [expandedWhyId, setExpandedWhyId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'acknowledged' | 'resolved'>('all');
   const [severityFilter, setSeverityFilter] = useState<'all' | 'critical' | 'warning'>('all');
@@ -40,7 +42,8 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
         onShowToast?.(`Incident marked as ${newStatus}`, 'success');
         onRefreshAlerts?.();
       } else {
-        onShowToast?.('Failed to update incident status', 'error');
+        const data = await res.json().catch(() => ({}));
+        onShowToast?.(data.error || 'Failed to update incident status', 'error');
       }
     } catch (err: any) {
       onShowToast?.(err.message, 'error');
@@ -158,6 +161,7 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
             }
             const isCrimeExpanded = expandedCrimeId === alert.id;
             const isTimelineExpanded = expandedTimelineId === alert.id;
+            const isWhyExpanded = expandedWhyId === alert.id;
             const isResolved = alert.status === 'resolved';
             const isAcked = alert.status === 'acknowledged';
 
@@ -191,9 +195,20 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
                     <span className={`gh-badge ${alert.severity === 'critical' ? 'gh-badge-danger' : 'gh-badge-attention'}`}>
                       {alert.severity}
                     </span>
-                    {alert.status !== 'active' && (
+                    {alert.detector === 'anomaly' && (
                       <span className="gh-badge" style={{ backgroundColor: 'var(--color-canvas-subtle)', border: '1px solid var(--color-border-default)' }}>
-                        {alert.status}
+                        anomaly
+                      </span>
+                    )}
+                    {alert.status !== 'active' && (
+                      <span
+                        className="gh-badge"
+                        style={{ backgroundColor: 'var(--color-canvas-subtle)', border: '1px solid var(--color-border-default)' }}
+                        title={isResolved ? `resolved by ${alert.resolved_by}` : `acknowledged by ${alert.acked_by}`}
+                      >
+                        {isResolved
+                          ? (alert.resolved_by === 'auto' ? 'auto-resolved' : `resolved by ${alert.resolved_by}`)
+                          : `ack: ${alert.acked_by}`}
                       </span>
                     )}
                   </div>
@@ -227,6 +242,20 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
                         {isCrimeExpanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
                       </button>
                     )}
+
+                    {/* Evidence-based explanation */}
+                    <button
+                      onClick={() => setExpandedWhyId(isWhyExpanded ? null : alert.id)}
+                      className="gh-btn"
+                      style={{
+                        fontSize: '0.72rem',
+                        padding: '2px 6px',
+                        backgroundColor: isWhyExpanded ? 'var(--color-accent-subtle)' : 'transparent'
+                      }}
+                    >
+                      <HelpCircle size={12} />
+                      <span>Why?</span>
+                    </button>
 
                     {/* Flight Recorder Timeline Button */}
                     <button
@@ -313,6 +342,28 @@ export const AlertFeed: React.FC<AlertFeedProps> = ({
                     )}
                   </div>
                 </div>
+
+                {/* ── WHY DID THIS FIRE (detector evidence) ── */}
+                {isWhyExpanded && (() => {
+                  const ex = explainAlert(alert);
+                  return (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        backgroundColor: 'var(--color-canvas-inset)',
+                        border: '1px solid var(--color-border-default)',
+                        borderRadius: 6,
+                        padding: '10px 12px',
+                        fontSize: '0.75rem'
+                      }}
+                    >
+                      <div style={{ fontWeight: 600, marginBottom: 6 }}>{ex.headline}</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--color-fg-muted)' }}>
+                        {ex.details.map((d, i) => <li key={i}>{d}</li>)}
+                      </ul>
+                    </div>
+                  );
+                })()}
 
                 {/* ── VISUAL SRE CAUSALITY TIMELINE DRAWER ── */}
                 {isTimelineExpanded && (

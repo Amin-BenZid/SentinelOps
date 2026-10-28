@@ -5,7 +5,7 @@ interface MetricSparklineProps {
   title: string;
   unit: string;
   color: string;
-  data: { timestamp: string; metric_value: number }[];
+  data: { timestamp: number | string; metric_value: number }[];
 }
 
 export const MetricSparkline: React.FC<MetricSparklineProps> = ({ title, unit, color, data }) => {

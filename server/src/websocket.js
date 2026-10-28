@@ -1,74 +1,75 @@
 import { WebSocketServer } from 'ws';
 import db from './db.js';
-import { notifier } from './services/notifier.js';
+import { authService } from './services/auth.js';
+import { recentAlerts, agentStatus } from './routes/api.js';
 
-export function setupWebSocket(server) {
-  const wss = new WebSocketServer({ server });
+// Browsers cannot set an Authorization header on a WebSocket, so the session
+// token is passed as ?token=... and validated BEFORE the upgrade completes.
+function tokenFromUrl(url) {
+  try {
+    const t = new URL(url, 'http://x').searchParams.get('token');
+    return t && /^[a-f0-9]{64}$/i.test(t) ? t : null;
+  } catch { return null; }
+}
 
-  console.log('[*] WebSocket server registered on top of HTTP server.');
+function latestMetrics() {
+  // latest sample of every series seen in the last 30 s (SQLite returns the
+  // row holding MAX(ts) for the bare columns)
+  return db.prepare(`
+    SELECT entity_id, metric_name, metric_value, MAX(ts) AS timestamp
+    FROM metrics WHERE ts >= ? GROUP BY entity_id, metric_name
+  `).all(Date.now() - 30_000);
+}
 
-  wss.on('connection', (ws) => {
-    sendLiveSnapshot(ws);
+export function setupWebSocket(server, intervalMs = 2000) {
+  const wss = new WebSocketServer({
+    server,
+    path: '/ws',
+    maxPayload: 4096,
+    verifyClient: ({ req }, done) => {
+      const token = tokenFromUrl(req.url);
+      const user = authService.validateToken(token);
+      if (!user || user.must_change_password) return done(false, 401, 'Unauthorized');
+      req.sessionToken = token;
+      done(true);
+    },
   });
 
-  setInterval(async () => {
-    if (!db) return;
-
+  wss.on('connection', (ws, req) => {
+    ws.sessionToken = req.sessionToken;
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+    ws.on('message', () => {}); // clients do not send commands
     try {
-      // 1. Fetch latest metrics for charts
-      const latestMetrics = db.prepare(`
-        SELECT entity_id, metric_name, metric_value, timestamp 
-        FROM metrics 
-        ORDER BY timestamp DESC 
-        LIMIT 10
-      `).all();
+      ws.send(JSON.stringify({ type: 'SNAPSHOT', activeAlerts: recentAlerts(), latestMetrics: latestMetrics(), agent: agentStatus() }));
+    } catch (e) { console.error('[ws] snapshot failed:', e.message); }
+  });
 
-      // 2. Fetch recent alerts (BOTH active and resolved so timelines remain visible!)
-      const alerts = db.prepare(`
-        SELECT * FROM alerts 
-        ORDER BY last_seen DESC 
-        LIMIT 25
-      `).all();
-
-      // 3. GUARANTEED SLACK DELIVERY: Process any alert that hasn't notified Slack yet
-      const unnotifiedAlerts = db.prepare(`
-        SELECT * FROM alerts 
-        WHERE notified = 0 OR notified IS NULL
-      `).all();
-
-      for (const alert of unnotifiedAlerts) {
-        // Mark as notified in SQLite immediately
-        db.prepare(`UPDATE alerts SET notified = 1 WHERE id = ?`).run(alert.id);
-        console.log(`[QUEUE] Dispatching Slack/Email notification for alert #${alert.id} (${alert.rule_name})`);
-        notifier.dispatch(alert).catch((err) => {
-          console.error('[!] Dispatch error:', err.message);
-        });
-      }
-
-      const payload = JSON.stringify({
+  const timer = setInterval(() => {
+    if (wss.clients.size === 0) return;
+    let payload;
+    try {
+      payload = JSON.stringify({
         type: 'TICK',
-        timestamp: new Date(),
-        latestMetrics,
-        activeAlerts: alerts // Sends both active and resolved
+        timestamp: Date.now(),
+        latestMetrics: latestMetrics(),
+        activeAlerts: recentAlerts(),
+        agent: agentStatus(),
       });
-
-      for (const client of wss.clients) {
-        if (client.readyState === 1) {
-          client.send(payload);
-        }
-      }
     } catch (e) {
-      // Ignore transient SQLite locks
+      console.error('[ws] tick query failed:', e.message); // never swallowed silently
+      return;
     }
-  }, 2000);
+    for (const ws of wss.clients) {
+      if (!authService.validateToken(ws.sessionToken)) { ws.close(4401, 'Session expired'); continue; }
+      if (!ws.isAlive) { ws.terminate(); continue; }
+      ws.isAlive = false;
+      ws.ping();
+      if (ws.readyState === 1) ws.send(payload);
+    }
+  }, intervalMs);
+  timer.unref();
 
-  function sendLiveSnapshot(ws) {
-    if (!db) return;
-    try {
-      const alerts = db.prepare(`SELECT * FROM alerts ORDER BY last_seen DESC LIMIT 25`).all();
-      ws.send(JSON.stringify({ type: 'SNAPSHOT', activeAlerts: alerts }));
-    } catch (e) {}
-  }
-
+  wss.on('close', () => clearInterval(timer));
   return wss;
 }

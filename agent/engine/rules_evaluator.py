@@ -1,7 +1,12 @@
+"""Threshold detector: compares each metric sample with the active rules."""
+from __future__ import annotations
+
+import math
 import operator
+
 import yaml
-import os
-import aiosqlite
+
+from agent.engine.signals import Signal
 
 OPERATORS = {
     ">": operator.gt,
@@ -11,56 +16,76 @@ OPERATORS = {
     "==": operator.eq,
 }
 
-class RulesEvaluator:
-    def __init__(self, config_path: str = "agent/config/rules.yaml", db_path: str = "data/sentinelops.db"):
-        self.config_path = config_path
-        self.db_path = db_path
-        self.cached_rules = []
 
-    async def sync_rules_from_db(self):
-        """Fetches active threshold rules directly from SQLite without reviving deleted rules."""
-        try:
-            async with aiosqlite.connect(self.db_path) as db:
-                db.row_factory = aiosqlite.Row
-                async with db.execute("SELECT * FROM rules WHERE is_active = 1") as cursor:
-                    rows = await cursor.fetchall()
-                    # Strictly synchronize in-memory rules with what is currently in SQLite
-                    self.cached_rules = [
-                        {
-                            "id": r["id"],
-                            "metric": r["metric_name"],
-                            "operator": r["operator"],
-                            "threshold": float(r["threshold"]),
-                            "duration_seconds": r["duration_seconds"],
-                            "severity": r["severity"],
-                            "summary": r["summary_template"]
-                        }
-                        for r in rows
-                    ]
-        except Exception as e:
-            pass
+def load_rules_yaml(path: str) -> tuple[list[dict], dict]:
+    """Returns (rules, top-level config) from rules.yaml, validating each rule."""
+    with open(path, encoding="utf-8") as f:
+        doc = yaml.safe_load(f) or {}
+    rules = []
+    for r in doc.get("rules", []) or []:
+        missing = {"id", "metric", "operator", "threshold", "severity", "summary"} - set(r)
+        if missing:
+            raise ValueError(f"rule {r.get('id', '?')} is missing {sorted(missing)}")
+        if r["operator"] not in OPERATORS:
+            raise ValueError(f"rule {r['id']}: unsupported operator {r['operator']!r}")
+        if r["severity"] not in ("warning", "critical"):
+            raise ValueError(f"rule {r['id']}: severity must be warning|critical")
+        rules.append(r)
+    config = {k: v for k, v in doc.items() if k != "rules"}
+    return rules, config
 
-    def evaluate(self, metrics: list[dict]) -> tuple[list[dict], set[str]]:
-        """
-        Evaluates metrics against active rules.
-        Returns:
-          violations: list of triggered rule events
-          passing_rule_ids: set of rule IDs that are currently NOT violated (healthy)
-        """
-        violations = []
-        triggered_rule_keys = set()
 
-        for metric in metrics:
-            for rule in self.cached_rules:
-                if metric["metric_name"] == rule["metric"]:
-                    op_func = OPERATORS.get(rule["operator"])
-                    if op_func and op_func(metric["metric_value"], rule["threshold"]):
-                        violations.append({
-                            "rule_id": rule["id"],
-                            "entity_id": metric["entity_id"],
-                            "severity": rule["severity"],
-                            "summary": f"{rule['summary']} (Observed: {metric['metric_value']} {rule['operator']} {rule['threshold']})"
-                        })
-                        triggered_rule_keys.add(f"{rule['id']}:{metric['entity_id']}")
+class ThresholdDetector:
+    name = "threshold"
 
-        return violations, triggered_rule_keys
+    def __init__(self):
+        self.rules: list[dict] = []
+
+    def set_rules(self, db_rules: list[dict]):
+        """db_rules are rows from the `rules` table."""
+        self.rules = [
+            {
+                "id": r["id"],
+                "metric": r["metric_name"],
+                "operator": r["operator"],
+                "threshold": float(r["threshold"]),
+                "duration_seconds": int(r["duration_seconds"] or 0),
+                "severity": r["severity"],
+                "summary": r["summary_template"],
+            }
+            for r in db_rules
+            if r["operator"] in OPERATORS
+        ]
+
+    def detect(self, metrics: list[dict]) -> list[Signal]:
+        signals = []
+        for m in metrics:
+            value = m["metric_value"]
+            if value is None or (isinstance(value, float) and math.isnan(value)):
+                continue
+            for rule in self.rules:
+                if m["metric_name"] != rule["metric"]:
+                    continue
+                if OPERATORS[rule["operator"]](value, rule["threshold"]):
+                    signals.append(Signal(
+                        rule_id=rule["id"],
+                        detector=self.name,
+                        entity_id=m["entity_id"],
+                        metric_name=m["metric_name"],
+                        severity=rule["severity"],
+                        summary=f"{rule['summary']} (observed {value:g} {rule['operator']} {rule['threshold']:g})",
+                        for_seconds=rule["duration_seconds"],
+                        evidence={
+                            "detector": "threshold",
+                            "metric": m["metric_name"],
+                            "observed": value,
+                            "operator": rule["operator"],
+                            "threshold": rule["threshold"],
+                            "for_seconds": rule["duration_seconds"],
+                        },
+                    ))
+        return signals
+
+
+# Backwards-compatible name used in older docs
+RulesEvaluator = ThresholdDetector

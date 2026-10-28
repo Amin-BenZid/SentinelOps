@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Mail, MessageSquare, Clock, Save, Send } from 'lucide-react';
+import { Bell, Mail, MessageSquare, Clock, Save, Send, Activity } from 'lucide-react';
 import { AppSettings } from '../types';
 
 export const SettingsManager: React.FC = () => {
@@ -12,8 +12,11 @@ export const SettingsManager: React.FC = () => {
     alert_email_to: '',
     quiet_hours_enabled: 'false',
     quiet_hours_start: '22',
-    quiet_hours_end: '7'
+    quiet_hours_end: '7',
+    anomaly_detection_enabled: 'true'
   });
+  // secrets are write-only: the API only tells us whether one is stored
+  const [secretsSet, setSecretsSet] = useState<Record<string, boolean>>({});
   const [status, setStatus] = useState<{ text: string; isError: boolean } | null>(null);
   const [testingSlack, setTestingSlack] = useState(false);
 
@@ -22,6 +25,7 @@ export const SettingsManager: React.FC = () => {
       .then((res) => res.json())
       .then((data) => {
         if (data.settings) setSettings((prev) => ({ ...prev, ...data.settings }));
+        if (data.secrets_set) setSecretsSet(data.secrets_set);
       })
       .catch(() => {});
   }, []);
@@ -38,6 +42,12 @@ export const SettingsManager: React.FC = () => {
       .then((data) => {
         if (data.success) {
           setStatus({ text: 'Settings successfully saved and active!', isError: false });
+          setSecretsSet((prev) => ({
+            ...prev,
+            ...(settings.slack_webhook_url ? { slack_webhook_url: true } : {}),
+            ...(settings.smtp_pass ? { smtp_pass: true } : {})
+          }));
+          setSettings((prev) => ({ ...prev, slack_webhook_url: '', smtp_pass: '' }));
         } else {
           setStatus({ text: data.error || 'Failed to save settings', isError: true });
         }
@@ -47,7 +57,7 @@ export const SettingsManager: React.FC = () => {
   };
 
   const handleTestSlack = async () => {
-    if (!settings.slack_webhook_url) {
+    if (!settings.slack_webhook_url && !secretsSet.slack_webhook_url) {
       setStatus({ text: 'Please enter a Slack Webhook URL first.', isError: true });
       return;
     }
@@ -59,7 +69,8 @@ export const SettingsManager: React.FC = () => {
       const res = await fetch('/api/test/slack', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ webhook_url: settings.slack_webhook_url })
+        // blank = use the stored (write-only) webhook
+        body: JSON.stringify({ webhook_url: settings.slack_webhook_url || undefined })
       });
       const data = await res.json();
 
@@ -100,7 +111,7 @@ export const SettingsManager: React.FC = () => {
             <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
               <input
                 type="url"
-                placeholder="https://hooks.slack.com/services/T.../B.../..."
+                placeholder={secretsSet.slack_webhook_url ? '•••••• saved (type a new URL to replace)' : 'https://hooks.slack.com/services/T.../B.../...'}
                 value={settings.slack_webhook_url || ''}
                 onChange={(e) => setSettings({ ...settings, slack_webhook_url: e.target.value })}
                 className="gh-input mono"
@@ -165,7 +176,7 @@ export const SettingsManager: React.FC = () => {
                 <label style={labelStyle}>Password / App Secret</label>
                 <input
                   type="password"
-                  placeholder="••••••••••••"
+                  placeholder={secretsSet.smtp_pass ? '•••••• saved (leave blank to keep)' : 'App password'}
                   value={settings.smtp_pass || ''}
                   onChange={(e) => setSettings({ ...settings, smtp_pass: e.target.value })}
                   className="gh-input"
@@ -229,6 +240,26 @@ export const SettingsManager: React.FC = () => {
                   style={{ width: 80, marginTop: 4 }}
                 />
               </div>
+            </div>
+          </div>
+
+          <hr style={{ border: 'none', borderTop: '1px solid var(--color-border-muted)' }} />
+
+          {/* Anomaly detection */}
+          <div>
+            <h3 style={{ fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <Activity size={16} color="var(--color-accent-fg)" /> Statistical Anomaly Detection
+            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                id="anomaly"
+                checked={settings.anomaly_detection_enabled !== 'false'}
+                onChange={(e) => setSettings({ ...settings, anomaly_detection_enabled: e.target.checked ? 'true' : 'false' })}
+              />
+              <label htmlFor="anomaly" style={{ fontSize: '0.85rem' }}>
+                Raise a warning when a metric leaves its rolling baseline (z-score), even without a threshold rule
+              </label>
             </div>
           </div>
 

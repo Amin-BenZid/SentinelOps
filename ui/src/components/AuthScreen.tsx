@@ -42,7 +42,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
 
       setAuthToken(data.token);
 
-      // If user must change credentials (e.g. first login with admin/admin)
+      // If user must change credentials (first login with the generated password)
       if (data.user.must_change_password) {
         setStep('force_change');
         setNewUsername(data.user.username);
@@ -66,8 +66,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
       return;
     }
 
-    if (newPassword.length < 5) {
-      setErrorMsg('Password must be at least 5 characters long');
+    if (newPassword.length < 8) {
+      setErrorMsg('Password must be at least 8 characters long');
       return;
     }
 
@@ -221,7 +221,8 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
                 textAlign: 'center'
               }}
             >
-              Default on first boot: <strong className="mono">admin</strong> / <strong className="mono">admin</strong>
+              First boot: user <strong className="mono">admin</strong>, password printed once in the dashboard logs
+              (<span className="mono">docker compose logs dashboard</span>) or set via <span className="mono">ADMIN_PASSWORD</span>
             </div>
           </form>
         ) : (
@@ -260,7 +261,7 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({ onLoginSuccess }) => {
               <input
                 type="password"
                 required
-                placeholder="Min 5 characters"
+                placeholder="Min 8 characters"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 className="gh-input"

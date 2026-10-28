@@ -1,12 +1,13 @@
 {
   "name": "sentinelops-server",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "SentinelOps Dashboard API & Real-time WebSocket Gateway",
   "main": "src/index.js",
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node --watch src/index.js"
+    "dev": "node --watch src/index.js",
+    "test": "node --test --test-concurrency=1 \"test/**/*.test.js\""
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -14,5 +15,8 @@
     "express": "^4.21.2",
     "nodemailer": "^6.9.13",
     "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=22.13"
   }
 }

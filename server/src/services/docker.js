@@ -1,121 +1,70 @@
-import http from 'http';
+// Minimal Docker Engine API client. In docker-compose it talks to a
+// docker-socket-proxy (DOCKER_HOST=tcp://docker-proxy-ops:2375) that only
+// allows container read endpoints + restart; it never touches the raw socket.
+import http from 'node:http';
 
-const DOCKER_SOCKET = process.env.DOCKER_SOCKET || '/var/run/docker.sock';
+const CONTAINER_ID_RE = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 
-/**
- * Executes raw HTTP request over Docker UNIX domain socket
- */
+function connection() {
+  const host = process.env.DOCKER_HOST || '';
+  if (host.startsWith('tcp://')) {
+    const u = new URL(host.replace('tcp://', 'http://'));
+    return { host: u.hostname, port: Number(u.port || 2375) };
+  }
+  return { socketPath: host.startsWith('unix://') ? host.slice(7) : (process.env.DOCKER_SOCKET || '/var/run/docker.sock') };
+}
+
 function dockerRequest(path, method = 'GET') {
   return new Promise((resolve, reject) => {
-    const options = {
-      socketPath: DOCKER_SOCKET,
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    };
-
-    const req = http.request(options, (res) => {
+    const req = http.request({ ...connection(), path, method, timeout: 15_000 }, (res) => {
       const chunks = [];
-      res.on('data', (chunk) => chunks.push(chunk));
-      res.on('end', () => {
-        const buffer = Buffer.concat(chunks);
-        resolve({
-          statusCode: res.statusCode,
-          headers: res.headers,
-          data: buffer
-        });
-      });
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ statusCode: res.statusCode, data: Buffer.concat(chunks) }));
     });
-
-    req.on('error', (err) => {
-      reject(err);
-    });
-
+    req.on('timeout', () => req.destroy(new Error('Docker API timeout')));
+    req.on('error', reject);
     req.end();
   });
 }
 
-/**
- * Strips Docker's 8-byte multiplex header (stream type + 4-byte size)
- * from stdout/stderr chunks to yield human-readable text.
- */
-function demuxDockerStream(buffer) {
+/** Strips Docker's 8-byte stream multiplexing headers from log output. */
+export function demuxDockerStream(buffer) {
   let offset = 0;
-  const lines = [];
-
+  const parts = [];
   while (offset < buffer.length) {
-    if (offset + 8 > buffer.length) {
-      // Non-multiplexed raw stream fallback
-      lines.push(buffer.subarray(offset).toString('utf-8'));
+    const type = buffer[offset];
+    if (offset + 8 > buffer.length || ![0, 1, 2].includes(type) || buffer.readUInt16BE(offset + 1) !== 0) {
+      parts.push(buffer.subarray(offset).toString('utf-8')); // TTY container: raw stream
       break;
     }
-
-    // Bytes 4-7 contain big-endian frame size
-    const frameSize = buffer.readUInt32BE(offset + 4);
-    const content = buffer.subarray(offset + 8, offset + 8 + frameSize).toString('utf-8');
-    lines.push(content);
-    offset += 8 + frameSize;
+    const size = buffer.readUInt32BE(offset + 4);
+    parts.push(buffer.subarray(offset + 8, offset + 8 + size).toString('utf-8'));
+    offset += 8 + size;
   }
+  return parts.join('');
+}
 
-  return lines.join('');
+export function isValidContainerId(id) {
+  return typeof id === 'string' && CONTAINER_ID_RE.test(id);
 }
 
 export const dockerService = {
-  /**
-   * Fetches the last N lines of stdout and stderr
-   */
   async getLogs(containerId, tail = 100) {
-    try {
-      const res = await dockerRequest(`/containers/${encodeURIComponent(containerId)}/logs?stdout=1&stderr=1&tail=${tail}&timestamps=1`);
-      if (res.statusCode === 404) {
-        throw new Error('Container not found or not running');
-      }
-      return demuxDockerStream(res.data);
-    } catch (err) {
-      throw new Error(`Failed to read container logs: ${err.message}`);
-    }
+    if (!isValidContainerId(containerId)) throw Object.assign(new Error('Invalid container id'), { status: 400 });
+    const n = Math.min(Math.max(parseInt(tail, 10) || 100, 1), 1000);
+    const res = await dockerRequest(`/containers/${encodeURIComponent(containerId)}/logs?stdout=1&stderr=1&tail=${n}&timestamps=1`);
+    if (res.statusCode === 404) throw Object.assign(new Error('Container not found'), { status: 404 });
+    if (res.statusCode === 403) throw Object.assign(new Error('Blocked by Docker socket proxy'), { status: 403 });
+    if (res.statusCode !== 200) throw new Error(`Docker returned ${res.statusCode}`);
+    return demuxDockerStream(res.data);
   },
 
-  /**
-   * Restarts the specified container with a 10s grace timeout
-   */
   async restartContainer(containerId) {
-    try {
-      const res = await dockerRequest(`/containers/${encodeURIComponent(containerId)}/restart?t=10`, 'POST');
-      if (res.statusCode === 204) {
-        return { success: true, message: `Container ${containerId} restarted successfully` };
-      }
-      if (res.statusCode === 404) {
-        throw new Error('Container not found');
-      }
-      throw new Error(`Docker returned status ${res.statusCode}`);
-    } catch (err) {
-      throw new Error(`Failed to restart container: ${err.message}`);
-    }
+    if (!isValidContainerId(containerId)) throw Object.assign(new Error('Invalid container id'), { status: 400 });
+    const res = await dockerRequest(`/containers/${encodeURIComponent(containerId)}/restart?t=10`, 'POST');
+    if (res.statusCode === 204) return { success: true, message: `Container ${containerId} restarted` };
+    if (res.statusCode === 404) throw Object.assign(new Error('Container not found'), { status: 404 });
+    if (res.statusCode === 403) throw Object.assign(new Error('Blocked by Docker socket proxy'), { status: 403 });
+    throw new Error(`Docker returned ${res.statusCode}`);
   },
-
-  /**
-   * Inspects detailed container state
-   */
-  async inspect(containerId) {
-    try {
-      const res = await dockerRequest(`/containers/${encodeURIComponent(containerId)}/json`);
-      if (res.statusCode === 200) {
-        const parsed = JSON.parse(res.data.toString('utf-8'));
-        return {
-          id: parsed.Id?.slice(0, 12),
-          name: parsed.Name?.replace(/^\//, ''),
-          status: parsed.State?.Status,
-          running: parsed.State?.Running,
-          startedAt: parsed.State?.StartedAt,
-          image: parsed.Config?.Image
-        };
-      }
-      throw new Error('Container inspect failed');
-    } catch (err) {
-      return null;
-    }
-  }
 };

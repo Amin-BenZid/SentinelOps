@@ -1,49 +1,123 @@
+# SentinelOps v0.2
+#
+#   browser ──► dashboard :4000 ──► docker-proxy-ops ──► docker.sock   (logs + restart only)
+#                   │
+#                   └── SQLite volume ◄── agent ──► docker-proxy-ro ──► docker.sock (read-only)
+#
+# Neither app container mounts the Docker socket. Each talks to a
+# docker-socket-proxy that only allows the API calls it needs, on an internal
+# network with no published ports.
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs: [/tmp]
+
 services:
+  # One-shot: make the shared volume writable by the non-root app user (uid 1000).
+  # Also fixes volumes created by v0.1, which were owned by root.
+  volume-init:
+    build:
+      context: .
+      dockerfile: agent/Dockerfile
+    image: sentinelops-agent:0.2
+    user: "0"
+    entrypoint: ["sh", "-c", "chown -R 1000:1000 /data && chmod 750 /data"]
+    volumes:
+      - sentinelops_data:/data
+    network_mode: none
+    restart: "no"
+
+  docker-proxy-ro:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: sentinelops-docker-proxy-ro
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1        # GET /containers/** (list, inspect, stats) — POST stays disabled
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-ro]
+
+  docker-proxy-ops:
+    image: tecnativa/docker-socket-proxy:v0.5.0
+    container_name: sentinelops-docker-proxy-ops
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1        # read logs
+      ALLOW_RESTARTS: 1    # POST /containers/{id}/restart|stop|kill — nothing else (no create/exec/delete)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks: [docker-ops]
+
   agent:
+    <<: *hardening
+    image: sentinelops-agent:0.2
     build:
       context: .
       dockerfile: agent/Dockerfile
     container_name: sentinelops-agent
     restart: unless-stopped
-    pid: "host"
+    pid: "host"                     # see host processes for the forensic snapshot
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
       - sentinelops_data:/data
+      - /proc:/host/proc:ro         # host CPU / RAM / processes
+      - /:/rootfs:ro                # host disk usage
       - ./agent/config/rules.yaml:/app/agent/config/rules.yaml:ro
     environment:
-      - DB_PATH=/data/sentinelops.db
-    networks:
-      - sentinel-net
+      DOCKER_HOST: tcp://docker-proxy-ro:2375
+      HOST_ID: ${HOST_ID:-local-host}
+      RULES_RESEED: ${RULES_RESEED:-false}
+      ANOMALY_ENABLED: ${ANOMALY_ENABLED:-true}
+      RAW_RETENTION_HOURS: ${RAW_RETENTION_HOURS:-24}
+      ROLLUP_RETENTION_DAYS: ${ROLLUP_RETENTION_DAYS:-7}
+      ALERT_RETENTION_DAYS: ${ALERT_RETENTION_DAYS:-30}
+      PROMETHEUS_TARGETS: ${PROMETHEUS_TARGETS:-}
+      PROMETHEUS_METRICS: ${PROMETHEUS_METRICS:-}
+      TZ: ${TZ:-UTC}
+    networks: [docker-ro, default]
 
   dashboard:
+    <<: *hardening
+    image: sentinelops-dashboard:0.2
     build:
       context: .
       dockerfile: server/Dockerfile
     container_name: sentinelops-dashboard
     restart: unless-stopped
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     ports:
-      - "4000:4000"
+      # localhost only by default; set DASHBOARD_BIND=0.0.0.0 to expose on the LAN
+      - "${DASHBOARD_BIND:-127.0.0.1}:${DASHBOARD_PORT:-4000}:4000"
     volumes:
       - sentinelops_data:/data
-      # Mount Docker socket for live logs and restart operations
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - PORT=4000
-      - DB_PATH=/data/sentinelops.db
-      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
-      - SMTP_HOST=${SMTP_HOST:-}
-      - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USER=${SMTP_USER:-}
-      - SMTP_PASS=${SMTP_PASS:-}
-      - ALERT_EMAIL_TO=${ALERT_EMAIL_TO:-}
-    depends_on:
-      - agent
-    networks:
-      - sentinel-net
+      PORT: 4000
+      DOCKER_HOST: tcp://docker-proxy-ops:2375
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-12}
+      SESSION_IDLE_MINUTES: ${SESSION_IDLE_MINUTES:-120}
+      SLACK_WEBHOOK_URL: ${SLACK_WEBHOOK_URL:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      ALERT_EMAIL_TO: ${ALERT_EMAIL_TO:-}
+      TZ: ${TZ:-UTC}
+    networks: [docker-ops, default]
 
 volumes:
   sentinelops_data:
 
 networks:
-  sentinel-net:
-    driver: bridge
+  default:
+  docker-ro:
+    internal: true
+  docker-ops:
+    internal: true

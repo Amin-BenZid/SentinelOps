@@ -12,11 +12,12 @@ import { CustomizableDashboard } from './components/CustomizableDashboard';
 import { ContainerOpsModal } from './components/ContainerOpsModal';
 import { Toast, ToastMessage } from './components/Toast';
 import { AuthScreen } from './components/AuthScreen';
+import { TOKEN_KEY, UNAUTHORIZED_EVENT } from './api';
 
 export function App() {
   // ── AUTHENTICATION STATE (GRAFANA PATTERN) ──
   const [authToken, setAuthToken] = useState<string | null>(() => {
-    return localStorage.getItem('sentinelops_token') || null;
+    return localStorage.getItem(TOKEN_KEY) || null;
   });
   const [currentUser, setCurrentUser] = useState<{ username: string } | null>(null);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
@@ -33,12 +34,12 @@ export function App() {
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.user) {
+        if (data.user && !data.user.must_change_password) {
           setCurrentUser(data.user);
         } else {
           // Token expired or invalid
           setAuthToken(null);
-          localStorage.removeItem('sentinelops_token');
+          localStorage.removeItem(TOKEN_KEY);
         }
       })
       .catch(() => {
@@ -52,7 +53,7 @@ export function App() {
   const handleLoginSuccess = (token: string, user: { username: string }) => {
     setAuthToken(token);
     setCurrentUser(user);
-    localStorage.setItem('sentinelops_token', token);
+    localStorage.setItem(TOKEN_KEY, token);
   };
 
   const handleLogout = () => {
@@ -64,9 +65,21 @@ export function App() {
     }
     setAuthToken(null);
     setCurrentUser(null);
-    localStorage.removeItem('sentinelops_token');
+    localStorage.removeItem(TOKEN_KEY);
   };
 
+  // Any 401 from the API (expired/revoked session) -> back to the login screen
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setAuthToken(null);
+      setCurrentUser(null);
+      localStorage.removeItem(TOKEN_KEY);
+    };
+    window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
+  }, []);
+
+  const [agentStale, setAgentStale] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'rules' | 'settings'>('dashboard');
   const [connected, setConnected] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -140,11 +153,8 @@ export function App() {
 
     const connectWebSocket = () => {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = window.location.port === '3000'
-        ? `${window.location.hostname}:4000`
-        : window.location.host;
-
-      ws = new WebSocket(`${protocol}//${wsHost}`);
+      // token in the query string: browsers cannot set headers on a WebSocket
+      ws = new WebSocket(`${protocol}//${window.location.host}/ws?token=${encodeURIComponent(authToken)}`);
 
       ws.onopen = () => {
         if (!isUnmounted) setConnected(true);
@@ -155,6 +165,7 @@ export function App() {
           const payload = JSON.parse(event.data);
           if (payload.type === 'TICK' || payload.type === 'SNAPSHOT') {
             if (payload.activeAlerts) setAlerts(payload.activeAlerts);
+            if (payload.agent) setAgentStale(Boolean(payload.agent.stale));
 
             if (payload.latestMetrics) {
               const latestMap: Record<string, number> = {};
@@ -167,7 +178,11 @@ export function App() {
         } catch (err) {}
       };
 
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        if (ev.code === 4401) {
+          window.dispatchEvent(new Event(UNAUTHORIZED_EVENT));
+          return;
+        }
         if (!isUnmounted) {
           setConnected(false);
           reconnectTimeoutRef.current = setTimeout(connectWebSocket, 3000);
@@ -212,7 +227,7 @@ export function App() {
           <span className="slash">/</span>
           <span style={{ color: 'var(--color-fg-default)' }}>core-observability</span>
           <span className="gh-badge" style={{ backgroundColor: 'var(--color-canvas-subtle)', border: '1px solid var(--color-border-default)', fontSize: '0.7rem' }}>
-            <GitBranch size={12} /> v0.1-alpha
+            <GitBranch size={12} /> v0.2
           </span>
         </div>
 
@@ -243,6 +258,13 @@ export function App() {
               {isEditMode ? <Check size={14} /> : <Edit3 size={14} />}
               {isEditMode ? 'Done' : 'Customize Layout'}
             </button>
+          )}
+
+          {/* Agent heartbeat */}
+          {agentStale && (
+            <span className="gh-badge gh-badge-danger" title="No heartbeat from the collector agent for 30s+">
+              AGENT OFFLINE
+            </span>
           )}
 
           {/* Live WS Status */}

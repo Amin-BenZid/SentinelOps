@@ -41,7 +41,7 @@ export const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
-  const [widgetHistories, setWidgetHistories] = useState<Record<string, { timestamp: string; metric_value: number }[]>>({});
+  const [widgetHistories, setWidgetHistories] = useState<Record<string, { timestamp: number | string; metric_value: number }[]>>({});
 
   useEffect(() => {
     localStorage.setItem('sentinelops_dashboard_layout', JSON.stringify(widgets));
@@ -73,7 +73,7 @@ export const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({
             [w.id]: [
               ...current.slice(-29),
               {
-                timestamp: new Date().toISOString(),
+                timestamp: Date.now(),
                 metric_value: latestMetricValues[key]
               }
             ]
@@ -212,7 +212,7 @@ export const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({
               <div style={{ padding: 12, height: 140, width: '100%' }}>
                 {widget.type === 'area' && (
                   <ResponsiveContainer>
-                    <AreaChart data={history.map((h) => ({ time: h.timestamp, val: h.metric_value }))}>
+                    <AreaChart data={history.map((h) => ({ time: new Date(h.timestamp).toLocaleTimeString(), val: h.metric_value }))}>
                       <defs>
                         <linearGradient id={`grad_${widget.id}`} x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor={widget.color} stopOpacity={0.3} />

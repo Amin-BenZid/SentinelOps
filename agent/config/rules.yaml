@@ -1,4 +1,14 @@
-version: "0.1"
+# Default alerting rules (rules-as-code).
+#
+# These are SEEDED into the database the first time the agent starts on an
+# empty database. After that the database is the source of truth and rules are
+# managed from the "Rules Engine" tab (deleting a rule in the UI will NOT bring
+# it back on restart). To force the database to match this file again
+# (GitOps mode), start the agent once with RULES_RESEED=true.
+#
+# duration_seconds = how long the condition must hold before the alert fires
+# (the alert sits in PENDING until then, and short spikes never notify anyone).
+version: "0.2"
 scan_interval_seconds: 5
 
 rules:
@@ -18,10 +28,26 @@ rules:
     severity: "warning"
     summary: "Host RAM utilization is over 80%"
 
+  - id: "host_disk_full"
+    metric: "disk_percent"
+    operator: ">"
+    threshold: 90.0
+    duration_seconds: 300
+    severity: "critical"
+    summary: "Host disk is over 90% full"
+
   - id: "docker_container_oom"
     metric: "docker_memory_percent"
     operator: ">"
     threshold: 90.0
     duration_seconds: 30
     severity: "critical"
-    summary: "Container memory threshold saturated"
+    summary: "Container memory close to its limit"
+
+  - id: "docker_container_cpu"
+    metric: "docker_cpu_percent"
+    operator: ">"
+    threshold: 90.0
+    duration_seconds: 120
+    severity: "warning"
+    summary: "Container CPU saturated"

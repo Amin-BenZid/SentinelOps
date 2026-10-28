@@ -12,12 +12,21 @@ export const RulesManager: React.FC = () => {
     metric_name: 'cpu_percent',
     operator: '>',
     threshold: 80,
+    duration_seconds: 60,
     severity: 'warning',
     summary_template: 'Resource threshold exceeded'
   };
 
   const [form, setForm] = useState<Partial<MonitoringRule>>(defaultFormState);
   const [msg, setMsg] = useState<{ text: string; isError: boolean } | null>(null);
+  const [knownMetrics, setKnownMetrics] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/filters')
+      .then((res) => res.json())
+      .then((data) => setKnownMetrics(data.metrics || []))
+      .catch(() => {});
+  }, []);
 
   const fetchRules = () => {
     fetch('/api/rules')
@@ -71,7 +80,7 @@ export const RulesManager: React.FC = () => {
       metric_name: form.metric_name,
       operator: form.operator || '>',
       threshold: Number(form.threshold),
-      duration_seconds: Number(form.duration_seconds || 60),
+      duration_seconds: Number(form.duration_seconds ?? 60),
       severity: form.severity || 'warning',
       summary_template: form.summary_template || 'Threshold breach',
       is_active: 1
@@ -96,6 +105,8 @@ export const RulesManager: React.FC = () => {
         body: JSON.stringify(savedRule)
       });
       if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setMsg({ text: data.error || 'Server rejected the rule', isError: true });
         fetchRules();
       }
     } catch (err) {
@@ -177,17 +188,22 @@ export const RulesManager: React.FC = () => {
 
             <div>
               <label style={labelStyle}>Telemetry Metric</label>
-              <select
-                value={form.metric_name || 'cpu_percent'}
+              <input
+                list="known-metrics"
+                required
+                value={form.metric_name || ''}
                 onChange={(e) => setForm({ ...form, metric_name: e.target.value })}
-                className="gh-select"
+                className="gh-input mono"
                 style={{ width: '100%', marginTop: 4 }}
-              >
-                <option value="cpu_percent">cpu_percent (Host CPU)</option>
-                <option value="memory_percent">memory_percent (Host RAM)</option>
-                <option value="disk_percent">disk_percent (Host Disk)</option>
-                <option value="docker_memory_percent">docker_memory_percent (Container)</option>
-              </select>
+              />
+              <datalist id="known-metrics">
+                {Array.from(new Set([
+                  'cpu_percent', 'memory_percent', 'disk_percent', 'load1',
+                  'docker_cpu_percent', 'docker_memory_percent', 'docker_net_rx_kbps', 'docker_net_tx_kbps',
+                  'docker_restart_count', 'up',
+                  ...knownMetrics
+                ])).map((m) => <option key={m} value={m} />)}
+              </datalist>
             </div>
 
             <div>
@@ -203,6 +219,7 @@ export const RulesManager: React.FC = () => {
                   <option value="<">&lt;</option>
                   <option value=">=">&gt;=</option>
                   <option value="<=">&lt;=</option>
+                  <option value="==">==</option>
                 </select>
                 <input
                   type="number"
@@ -215,6 +232,20 @@ export const RulesManager: React.FC = () => {
                   style={{ flex: 1 }}
                 />
               </div>
+            </div>
+
+            <div>
+              <label style={labelStyle} title="How long the condition must hold before the alert fires">For (seconds)</label>
+              <input
+                type="number"
+                min="0"
+                max="86400"
+                step="1"
+                value={form.duration_seconds ?? 60}
+                onChange={(e) => setForm({ ...form, duration_seconds: Number(e.target.value) })}
+                className="gh-input mono"
+                style={{ width: '100%', marginTop: 4 }}
+              />
             </div>
 
             <div>
@@ -299,7 +330,7 @@ export const RulesManager: React.FC = () => {
                     </td>
                     <td style={{ padding: '8px 14px', fontWeight: 600 }} className="mono">{r.id}</td>
                     <td style={{ padding: '8px 14px', color: 'var(--color-accent-fg)' }} className="mono">{r.metric_name}</td>
-                    <td style={{ padding: '8px 14px' }} className="mono">{r.operator} {r.threshold}</td>
+                    <td style={{ padding: '8px 14px' }} className="mono">{r.operator} {r.threshold} for {r.duration_seconds}s</td>
                     <td style={{ padding: '8px 14px' }}>
                       <span className={`gh-badge ${r.severity === 'critical' ? 'gh-badge-danger' : 'gh-badge-attention'}`}>
                         {r.severity}

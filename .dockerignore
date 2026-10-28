@@ -1,0 +1,13 @@
+**/node_modules
+**/__pycache__
+**/*.pyc
+venv
+.venv
+data
+ui/dist
+.git
+.env
+*.db
+*.db-wal
+*.db-shm
+.so_transfer.tgz

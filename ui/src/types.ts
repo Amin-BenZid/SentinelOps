@@ -1,8 +1,11 @@
+/** All timestamps from the API are Unix epoch milliseconds (UTC). */
+export type Timestamp = number;
+
 export interface MetricPoint {
   entity_id: string;
   metric_name: string;
   metric_value: number;
-  timestamp: string;
+  timestamp: Timestamp;
 }
 
 export interface ProcessInfo {
@@ -13,20 +16,49 @@ export interface ProcessInfo {
   memory_mb: number;
 }
 
+/** Detector-specific explanation of why an alert fired. */
+export interface AlertEvidence {
+  detector?: 'threshold' | 'anomaly';
+  metric?: string;
+  observed?: number;
+  // threshold
+  operator?: string;
+  threshold?: number;
+  for_seconds?: number;
+  // anomaly
+  expected_mean?: number;
+  stdev?: number;
+  z_score?: number;
+  k?: number;
+  lower_bound?: number;
+  upper_bound?: number;
+  window?: number;
+}
+
 export interface Alert {
   id: number;
   fingerprint: string;
   correlation_id: string;
   rule_name: string;
+  detector: 'threshold' | 'anomaly';
   entity_id: string;
+  metric_name: string;
   severity: 'warning' | 'critical';
   summary: string;
-  // Updated status to include 'acknowledged'
+  /** lifecycle state stored in the DB */
+  state: 'firing' | 'resolved';
+  /** UI status: firing+acked = acknowledged */
   status: 'active' | 'acknowledged' | 'resolved';
-  first_seen: string;
-  last_seen: string;
+  first_seen: Timestamp;   // condition first true (pending start)
+  fired_at: Timestamp;     // passed its `for` duration
+  last_seen: Timestamp;
+  resolved_at: Timestamp | null;
+  resolved_by: string | null;   // 'auto' or a username
+  acked_by: string | null;
+  acked_at: Timestamp | null;
   hit_count: number;
   process_snapshot?: string;
+  evidence: AlertEvidence;
 }
 
 export interface ServiceHealth {
@@ -57,6 +89,7 @@ export interface AppSettings {
   quiet_hours_enabled?: string;
   quiet_hours_start?: string;
   quiet_hours_end?: string;
+  anomaly_detection_enabled?: string;
 }
 
 export type WidgetType = 'area' | 'bar' | 'donut' | 'stat';
