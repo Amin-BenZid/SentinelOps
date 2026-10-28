@@ -90,7 +90,7 @@ export const SettingsManager: React.FC = () => {
     <div className="gh-box" style={{ maxWidth: 760 }}>
       <div className="gh-box-header">
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <Bell size={16} /> Notification Channels & Webhook Integrations
+          <Bell size={16} /> Notifications & settings
         </span>
       </div>
 

@@ -157,11 +157,45 @@ router.delete('/alerts/purge', wrap((req, res) => {
 }));
 
 // ── metrics ──
+const RANGES = { '15m': 15 * 60_000, '1h': 3_600_000, '6h': 6 * 3_600_000, '24h': 24 * 3_600_000, '7d': 7 * 24 * 3_600_000 };
+
+/**
+ * Time series for one entity/metric.
+ *   ?range=15m|1h|6h|24h|7d  -> everything in that window; raw samples (with the
+ *                               anomaly band) up to 1h, 1-minute rollups beyond
+ *   ?limit=N                 -> legacy: last N raw samples
+ */
 router.get('/metrics/history', wrap((req, res) => {
   const entity = String(req.query.entity || 'local-host');
   const metric = String(req.query.metric || 'cpu_percent');
+  const range = RANGES[req.query.range] ? String(req.query.range) : null;
+  const useRollup = req.query.resolution === '1m' || (range && RANGES[range] > RANGES['1h']);
+
+  if (range) {
+    const since = Date.now() - RANGES[range];
+    if (useRollup) {
+      // stored rollups + the most recent minutes not rolled up yet, aggregated on the fly
+      const rows = db.prepare(`
+        WITH last AS (SELECT COALESCE(MAX(bucket_ts), 0) AS b FROM metrics_1m WHERE entity_id = ? AND metric_name = ?)
+        SELECT bucket_ts AS timestamp, avg_value AS metric_value, min_value, max_value
+          FROM metrics_1m WHERE entity_id = ? AND metric_name = ? AND bucket_ts >= ?
+        UNION ALL
+        SELECT (ts / 60000) * 60000 AS timestamp, AVG(metric_value), MIN(metric_value), MAX(metric_value)
+          FROM metrics, last WHERE entity_id = ? AND metric_name = ? AND ts >= MAX(?, last.b + 60000)
+          GROUP BY timestamp
+        ORDER BY timestamp
+      `).all(entity, metric, entity, metric, since, entity, metric, since);
+      return res.json({ data: rows, resolution: '1m', range });
+    }
+    const rows = db.prepare(`
+      SELECT ts AS timestamp, metric_value, is_anomaly, lower_bound, upper_bound
+      FROM metrics WHERE entity_id = ? AND metric_name = ? AND ts >= ? ORDER BY ts
+    `).all(entity, metric, since);
+    return res.json({ data: rows, resolution: 'raw', range });
+  }
+
   const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 30, 1), 1440);
-  if (req.query.resolution === '1m') {
+  if (useRollup) {
     const rows = db.prepare(`
       SELECT bucket_ts AS timestamp, avg_value AS metric_value, min_value, max_value
       FROM metrics_1m WHERE entity_id = ? AND metric_name = ? ORDER BY bucket_ts DESC LIMIT ?
@@ -185,18 +219,28 @@ router.get('/filters', wrap((req, res) => {
   });
 }));
 
-router.get('/services', wrap((req, res) => {
-  const entities = db.prepare(`SELECT DISTINCT entity_id, source FROM metrics WHERE ts >= ?`).all(Date.now() - 5 * 60_000);
+const STALE_MS = 30_000;
+
+export function servicesSnapshot() {
+  const now = Date.now();
+  // entities seen in the last 10 min; the ones silent for 30 s+ are reported
+  // as 'stale' (stopped container, dead exporter...) instead of 'healthy'
+  const entities = db.prepare(`
+    SELECT entity_id, MAX(source) AS source, MAX(ts) AS last_seen
+    FROM metrics WHERE ts >= ? GROUP BY entity_id ORDER BY entity_id
+  `).all(now - 10 * 60_000);
   const open = db.prepare(`SELECT entity_id, severity FROM alerts WHERE state = 'firing'`).all();
-  res.json({
-    services: entities.map((e) => {
-      const mine = open.filter((a) => a.entity_id === e.entity_id);
-      const status = mine.some((a) => a.severity === 'critical') ? 'critical'
-        : mine.some((a) => a.severity === 'warning') ? 'warning' : 'healthy';
-      return { id: e.entity_id, source: e.source, status, alertCount: mine.length };
-    }),
-    agent: agentStatus(),
+  return entities.map((e) => {
+    const mine = open.filter((a) => a.entity_id === e.entity_id);
+    let status = mine.some((a) => a.severity === 'critical') ? 'critical'
+      : mine.some((a) => a.severity === 'warning') ? 'warning' : 'healthy';
+    if (now - e.last_seen > STALE_MS) status = 'stale';
+    return { id: e.entity_id, source: e.source, status, alertCount: mine.length, last_seen: e.last_seen };
   });
+}
+
+router.get('/services', wrap((req, res) => {
+  res.json({ services: servicesSnapshot(), agent: agentStatus() });
 }));
 
 // ── rules ──

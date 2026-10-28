@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { X, TrendingUp, BarChart2, PieChart as PieIcon, Hash } from 'lucide-react';
+import { X, TrendingUp, BarChart2, Hash } from 'lucide-react';
+import { metricMeta } from '../utils/format';
 import { DashboardWidget, WidgetType } from '../types';
 
 interface AddWidgetModalProps {
@@ -10,7 +11,7 @@ interface AddWidgetModalProps {
   availableMetrics: string[];
 }
 
-const PRESET_COLORS = ['#1f6feb', '#238636', '#d29922', '#8957e5', '#f85149', '#0969da'];
+const PRESET_COLORS = ['#2f81f7', '#3fb950', '#d29922', '#a371f7', '#db61a2', '#39c5cf'];
 
 export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
   isOpen,
@@ -33,13 +34,13 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
     e.preventDefault();
     const newWidget: DashboardWidget = {
       id: `w_${Date.now()}`,
-      title: title.trim() || `${entity} · ${metric}`,
+      title: title.trim() || (type === 'bar' ? `${metricMeta(metric).label} by entity` : `${entity} · ${metricMeta(metric).label}`),
       type,
-      entity,
+      entity: type === 'bar' ? '*' : entity,
       metric,
       width,
       color,
-      unit: unit || '%'
+      unit: unit || metricMeta(metric).unit
     };
     onAdd(newWidget);
     onClose();
@@ -71,8 +72,8 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="gh-box-header">
-          <span>Add Telemetry Widget</span>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--color-fg-muted)', cursor: 'pointer' }}>
+          <span>Add widget</span>
+          <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', color: 'var(--color-fg-muted)', cursor: 'pointer' }}>
             <X size={18} />
           </button>
         </div>
@@ -80,13 +81,12 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
         <form onSubmit={handleSubmit} className="gh-box-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <label style={labelStyle}>Visualization Type</label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginTop: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginTop: 4 }}>
               {[
-                { t: 'area' as WidgetType, label: 'Area', icon: TrendingUp },
-                { t: 'bar' as WidgetType, label: 'Bar', icon: BarChart2 },
-                { t: 'donut' as WidgetType, label: 'Donut', icon: PieIcon },
-                { t: 'stat' as WidgetType, label: 'KPI', icon: Hash }
-              ].map(({ t, label, icon: Icon }) => (
+                { t: 'area' as WidgetType, label: 'Time series', hint: 'one entity, with expected range', icon: TrendingUp },
+                { t: 'bar' as WidgetType, label: 'Compare', hint: 'latest value on every entity', icon: BarChart2 },
+                { t: 'stat' as WidgetType, label: 'KPI', hint: 'current value vs rule', icon: Hash }
+              ].map(({ t, label, hint, icon: Icon }) => (
                 <button
                   key={t}
                   type="button"
@@ -102,7 +102,8 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
                   }}
                 >
                   <Icon size={18} />
-                  <span style={{ fontSize: '0.75rem' }}>{label}</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>{label}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--color-fg-muted)', fontWeight: 400, textAlign: 'center' }}>{hint}</span>
                 </button>
               ))}
             </div>
@@ -123,7 +124,8 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={labelStyle}>Entity</label>
-              <select value={entity} onChange={(e) => setEntity(e.target.value)} className="gh-select" style={{ width: '100%', marginTop: 4 }}>
+              <select value={type === 'bar' ? '*' : entity} disabled={type === 'bar'} onChange={(e) => setEntity(e.target.value)} className="gh-select" style={{ width: '100%', marginTop: 4 }}>
+                {type === 'bar' && <option value="*">all entities</option>}
                 {availableEntities.map((ent) => (
                   <option key={ent} value={ent}>{ent}</option>
                 ))}
@@ -131,7 +133,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
             </div>
             <div>
               <label style={labelStyle}>Metric</label>
-              <select value={metric} onChange={(e) => setMetric(e.target.value)} className="gh-select" style={{ width: '100%', marginTop: 4 }}>
+              <select value={metric} onChange={(e) => { setMetric(e.target.value); setUnit(metricMeta(e.target.value).unit); }} className="gh-select" style={{ width: '100%', marginTop: 4 }}>
                 {availableMetrics.map((met) => (
                   <option key={met} value={met}>{met}</option>
                 ))}
@@ -167,6 +169,7 @@ export const AddWidgetModal: React.FC<AddWidgetModalProps> = ({
                 <button
                   key={c}
                   type="button"
+                  aria-label={`Color ${c}`}
                   onClick={() => setColor(c)}
                   style={{
                     width: 26,

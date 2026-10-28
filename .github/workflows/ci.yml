@@ -59,6 +59,7 @@ jobs:
     needs: [agent, server, ui]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false        # always report both images, even if one fails
       matrix:
         include:
           - name: agent

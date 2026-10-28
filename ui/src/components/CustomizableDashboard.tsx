@@ -1,94 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import {
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer
-} from 'recharts';
+import React, { useState, useEffect, useMemo } from 'react';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from 'recharts';
 import { GripVertical, Trash2, Maximize2, Minimize2, Plus, RotateCcw } from 'lucide-react';
-import { DashboardWidget } from '../types';
+import { DashboardWidget, MonitoringRule, SeriesPoint, TimeRange } from '../types';
 import { AddWidgetModal } from './AddWidgetModal';
+import { MetricChart } from './MetricChart';
+import { formatValue, metricMeta } from '../utils/format';
 
 interface CustomizableDashboardProps {
   isEditMode: boolean;
   availableEntities: string[];
   availableMetrics: string[];
   latestMetricValues: Record<string, number>;
-  theme: 'dark' | 'light';
+  range: TimeRange;
 }
 
+const STORAGE_KEY = 'sentinelops_dashboard_layout_v2';
+const REFRESH_MS = 10_000;
+
 const DEFAULT_WIDGETS: DashboardWidget[] = [
-  { id: 'w_cpu', title: 'Host CPU Utilization', type: 'area', entity: 'local-host', metric: 'cpu_percent', width: 'half', color: '#1f6feb', unit: '%' },
-  { id: 'w_ram', title: 'Host Memory Usage', type: 'area', entity: 'local-host', metric: 'memory_percent', width: 'half', color: '#238636', unit: '%' },
-  { id: 'w_kpi_cpu', title: 'Current CPU Load', type: 'stat', entity: 'local-host', metric: 'cpu_percent', width: 'half', color: '#d29922', unit: '%' },
-  { id: 'w_dist', title: 'Resource Breakdown by Entity', type: 'donut', entity: 'local-host', metric: 'memory_percent', width: 'half', color: '#8957e5', unit: '%' }
+  { id: 'w_cpu', title: 'Host CPU', type: 'area', entity: 'local-host', metric: 'cpu_percent', width: 'half', color: '#2f81f7', unit: '%' },
+  { id: 'w_ram', title: 'Host memory', type: 'area', entity: 'local-host', metric: 'memory_percent', width: 'half', color: '#3fb950', unit: '%' },
+  { id: 'w_top_cpu', title: 'Containers by CPU', type: 'bar', entity: '*', metric: 'docker_cpu_percent', width: 'half', color: '#a371f7', unit: '%' },
+  { id: 'w_disk', title: 'Host disk', type: 'stat', entity: 'local-host', metric: 'disk_percent', width: 'half', color: '#d29922', unit: '%' },
 ];
+
+function loadWidgets(): DashboardWidget[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = JSON.parse(saved) as DashboardWidget[];
+      // v0.1 'donut' widgets showed one meaningless slice -> show them as an entity comparison
+      return parsed.map((w) => ((w.type as string) === 'donut' ? { ...w, type: 'bar' } : w));
+    }
+  } catch (e) { /* ignore corrupted layout */ }
+  return DEFAULT_WIDGETS;
+}
 
 export const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({
   isEditMode,
   availableEntities,
   availableMetrics,
   latestMetricValues,
-  theme
+  range
 }) => {
-  const [widgets, setWidgets] = useState<DashboardWidget[]>(() => {
-    const saved = localStorage.getItem('sentinelops_dashboard_layout');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return DEFAULT_WIDGETS;
-  });
-
+  const [widgets, setWidgets] = useState<DashboardWidget[]>(loadWidgets);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
-  const [widgetHistories, setWidgetHistories] = useState<Record<string, { timestamp: number | string; metric_value: number }[]>>({});
+  const [series, setSeries] = useState<Record<string, SeriesPoint[]>>({});
+  const [rules, setRules] = useState<MonitoringRule[]>([]);
 
   useEffect(() => {
-    localStorage.setItem('sentinelops_dashboard_layout', JSON.stringify(widgets));
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(widgets)); } catch (e) { /* storage unavailable */ }
   }, [widgets]);
 
-  // Initial REST fetch
+  // active rules -> threshold lines / KPI targets
   useEffect(() => {
-    widgets.forEach((w) => {
-      fetch(`/api/metrics/history?entity=${w.entity}&metric=${w.metric}&limit=30`)
-        .then((res) => res.json())
-        .then((resData) => {
-          if (resData.data) {
-            setWidgetHistories((prev) => ({ ...prev, [w.id]: resData.data }));
-          }
-        })
-        .catch(() => {});
-    });
-  }, [widgets]);
+    fetch('/api/rules').then((r) => r.json()).then((d) => setRules(d.rules || [])).catch(() => {});
+  }, []);
 
-  // Real-time tick update
+  // time series for area widgets, refreshed every 10 s (includes the anomaly band)
+  const seriesKeys = useMemo(
+    () => Array.from(new Set(widgets.filter((w) => w.type === 'area').map((w) => `${w.entity}|${w.metric}`))),
+    [widgets]
+  );
   useEffect(() => {
-    widgets.forEach((w) => {
-      const key = `${w.entity}:${w.metric}`;
-      if (latestMetricValues[key] !== undefined) {
-        setWidgetHistories((prev) => {
-          const current = prev[w.id] || [];
-          return {
-            ...prev,
-            [w.id]: [
-              ...current.slice(-29),
-              {
-                timestamp: Date.now(),
-                metric_value: latestMetricValues[key]
-              }
-            ]
-          };
-        });
-      }
-    });
-  }, [latestMetricValues, widgets]);
+    let cancelled = false;
+    const load = () => {
+      seriesKeys.forEach((key) => {
+        const [entity, metric] = key.split('|');
+        fetch(`/api/metrics/history?entity=${encodeURIComponent(entity)}&metric=${encodeURIComponent(metric)}&range=${range}`)
+          .then((r) => r.json())
+          .then((d) => { if (!cancelled && d.data) setSeries((prev) => ({ ...prev, [key]: d.data })); })
+          .catch(() => {});
+      });
+    };
+    load();
+    const t = setInterval(load, REFRESH_MS);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [seriesKeys, range]);
 
-  const handleDragStart = (index: number) => {
-    setDraggedIdx(index);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+  const thresholdFor = (metric: string) => {
+    const r = rules.find((x) => x.is_active && x.metric_name === metric && (x.operator === '>' || x.operator === '>='));
+    return r ? Number(r.threshold) : null;
   };
 
   const handleDrop = (targetIndex: number) => {
@@ -100,184 +93,144 @@ export const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({
     setDraggedIdx(null);
   };
 
-  const handleToggleWidth = (id: string) => {
-    setWidgets((prev) =>
-      prev.map((w) => (w.id === id ? { ...w, width: w.width === 'half' ? 'full' : 'half' } : w))
-    );
-  };
-
-  const handleDeleteWidget = (id: string) => {
-    setWidgets((prev) => prev.filter((w) => w.id !== id));
-  };
-
   const handleReset = () => {
-    if (confirm('Reset dashboard to default GitHub layout?')) {
-      setWidgets(DEFAULT_WIDGETS);
-    }
+    if (confirm('Reset the dashboard to the default layout?')) setWidgets(DEFAULT_WIDGETS);
   };
-
-  const tooltipBg = theme === 'dark' ? '#161b22' : '#ffffff';
-  const tooltipBorder = theme === 'dark' ? '#30363d' : '#d0d7de';
-  const tooltipText = theme === 'dark' ? '#e6edf3' : '#1f2328';
 
   return (
     <div>
-      {/* GitHub Edit Banner */}
       {isEditMode && (
-        <div
-          style={{
-            backgroundColor: 'var(--color-accent-subtle)',
-            border: '1px dashed var(--color-accent-fg)',
-            borderRadius: 6,
-            padding: '10px 16px',
-            marginBottom: 20,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 12
-          }}
-        >
-          <div style={{ fontSize: '0.85rem', color: 'var(--color-fg-default)' }}>
-            <strong>Customizing Layout:</strong> Drag cards to rearrange, toggle full/half span, or append telemetry widgets.
-          </div>
+        <div className="edit-banner">
+          <span><strong>Editing layout</strong> — drag cards to reorder, resize or remove them, or add a widget.</span>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => setIsModalOpen(true)} className="gh-btn gh-btn-primary">
-              <Plus size={14} /> Add Widget
+              <Plus size={14} /> Add widget
             </button>
             <button onClick={handleReset} className="gh-btn">
-              <RotateCcw size={14} /> Reset Layout
+              <RotateCcw size={14} /> Reset
             </button>
           </div>
         </div>
       )}
 
-      {/* Grid of Widgets */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16 }}>
+      <div className="widget-grid">
         {widgets.map((widget, index) => {
-          const history = widgetHistories[widget.id] || [];
-          const currentVal = history.length > 0 ? history[history.length - 1].metric_value : 0;
+          const meta = metricMeta(widget.metric);
+          const latest = latestMetricValues[`${widget.entity}:${widget.metric}`];
+          const threshold = thresholdFor(widget.metric);
+
+          // entity comparison for bar widgets: latest value of this metric on every entity
+          const compare = widget.type === 'bar'
+            ? Object.entries(latestMetricValues)
+                .filter(([k]) => k.endsWith(`:${widget.metric}`))
+                .map(([k, v]) => ({ name: k.slice(0, k.length - widget.metric.length - 1), value: v }))
+                .sort((a, b) => b.value - a.value)
+                .slice(0, 8)
+            : [];
 
           return (
             <div
               key={widget.id}
               draggable={isEditMode}
-              onDragStart={() => handleDragStart(index)}
-              onDragOver={handleDragOver}
+              onDragStart={() => setDraggedIdx(index)}
+              onDragOver={(e) => e.preventDefault()}
               onDrop={() => handleDrop(index)}
-              className="gh-box"
-              style={{
-                gridColumn: widget.width === 'full' ? 'span 2' : 'span 1',
-                border: `1px solid ${isEditMode ? 'var(--color-accent-fg)' : 'var(--color-border-default)'}`,
-                cursor: isEditMode ? 'grab' : 'default',
-                opacity: draggedIdx === index ? 0.35 : 1,
-                marginBottom: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                minHeight: 220
-              }}
+              className={`gh-box widget ${widget.width === 'full' ? 'widget-full' : ''} ${isEditMode ? 'widget-editing' : ''}`}
+              style={{ opacity: draggedIdx === index ? 0.35 : 1 }}
             >
-              {/* Header */}
-              <div className="gh-box-header" style={{ padding: '8px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div className="gh-box-header widget-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                   {isEditMode && <GripVertical size={16} color="var(--color-fg-muted)" />}
-                  <div>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600 }}>{widget.title}</span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--color-fg-muted)', marginLeft: 8 }} className="mono">
-                      {widget.entity} · {widget.metric}
-                    </span>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="widget-title">{widget.title}</div>
+                    <div className="widget-sub mono">
+                      {widget.type === 'bar' ? 'all entities' : widget.entity} · {widget.metric}
+                    </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {isEditMode ? (
-                    <>
-                      <button onClick={() => handleToggleWidth(widget.id)} className="gh-btn" style={{ padding: 4 }}>
-                        {widget.width === 'full' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-                      </button>
-                      <button onClick={() => handleDeleteWidget(widget.id)} className="gh-btn gh-btn-danger" style={{ padding: 4 }}>
-                        <Trash2 size={13} />
-                      </button>
-                    </>
-                  ) : (
-                    <span className="mono" style={{ fontSize: '1.15rem', fontWeight: 700, color: widget.color }}>
-                      {currentVal.toFixed(1)} {widget.unit}
-                    </span>
-                  )}
-                </div>
+                {isEditMode ? (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={() => setWidgets((p) => p.map((w) => (w.id === widget.id ? { ...w, width: w.width === 'half' ? 'full' : 'half' } : w)))}
+                      className="gh-btn" style={{ padding: 4 }} aria-label="Toggle width"
+                    >
+                      {widget.width === 'full' ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                    </button>
+                    <button onClick={() => setWidgets((p) => p.filter((w) => w.id !== widget.id))} className="gh-btn gh-btn-danger" style={{ padding: 4 }} aria-label="Remove widget">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ) : widget.type !== 'bar' ? (
+                  <span className="widget-value mono" style={{ color: widget.color }}>{formatValue(latest, widget.metric)}</span>
+                ) : null}
               </div>
 
-              {/* Chart Body */}
-              <div style={{ padding: 12, height: 140, width: '100%' }}>
+              <div className="widget-body">
                 {widget.type === 'area' && (
-                  <ResponsiveContainer>
-                    <AreaChart data={history.map((h) => ({ time: new Date(h.timestamp).toLocaleTimeString(), val: h.metric_value }))}>
-                      <defs>
-                        <linearGradient id={`grad_${widget.id}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor={widget.color} stopOpacity={0.3} />
-                          <stop offset="95%" stopColor={widget.color} stopOpacity={0.0} />
-                        </linearGradient>
-                      </defs>
-                      <XAxis dataKey="time" hide />
-                      <YAxis domain={[0, 100]} hide />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 6, color: tooltipText, fontSize: '0.75rem' }}
-                        formatter={(val: number) => [`${Number(val).toFixed(1)} ${widget.unit}`, 'Telemetry']}
-                      />
-                      <Area type="monotone" dataKey="val" stroke={widget.color} strokeWidth={2} fill={`url(#grad_${widget.id})`} isAnimationActive={false} />
-                    </AreaChart>
-                  </ResponsiveContainer>
+                  <MetricChart
+                    data={series[`${widget.entity}|${widget.metric}`] || []}
+                    metric={widget.metric}
+                    color={widget.color}
+                    threshold={threshold}
+                  />
                 )}
 
                 {widget.type === 'bar' && (
-                  <ResponsiveContainer>
-                    <BarChart data={history.slice(-10).map((h, i) => ({ step: `#${i + 1}`, val: h.metric_value }))}>
-                      <XAxis dataKey="step" hide />
-                      <YAxis domain={[0, 100]} hide />
-                      <Tooltip
-                        contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 6, color: tooltipText, fontSize: '0.75rem' }}
-                        formatter={(val: number) => [`${Number(val).toFixed(1)} ${widget.unit}`, 'Value']}
-                      />
-                      <Bar dataKey="val" fill={widget.color} radius={[3, 3, 0, 0]} isAnimationActive={false} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  compare.length === 0 ? (
+                    <div className="empty-chart" style={{ height: 150 }}>No entity reports {widget.metric}</div>
+                  ) : (
+                    <div style={{ width: '100%', height: 150 }}>
+                      <ResponsiveContainer>
+                        <BarChart data={compare} layout="vertical" margin={{ top: 0, right: 16, bottom: 0, left: 0 }}>
+                          <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" horizontal={false} />
+                          <XAxis type="number" domain={meta.percent ? [0, 100] : [0, 'auto']} tick={{ fill: 'var(--color-fg-muted)', fontSize: 11 }} stroke="var(--color-border-default)" />
+                          <YAxis type="category" dataKey="name" width={110} tick={{ fill: 'var(--color-fg-default)', fontSize: 11 }} stroke="var(--color-border-default)" />
+                          <Tooltip
+                            cursor={{ fill: 'var(--color-accent-subtle)' }}
+                            content={({ active, payload }) =>
+                              active && payload && payload.length ? (
+                                <div className="chart-tooltip">
+                                  <div className="mono">{(payload[0].payload as any).name}</div>
+                                  <div style={{ fontWeight: 600 }}>{formatValue(payload[0].value as number, widget.metric)}</div>
+                                </div>
+                              ) : null
+                            }
+                          />
+                          <Bar dataKey="value" radius={[0, 3, 3, 0]} isAnimationActive={false}>
+                            {compare.map((c) => (
+                              <Cell key={c.name} fill={threshold !== null && c.value > threshold ? 'var(--color-danger-fg)' : widget.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )
                 )}
 
-                {widget.type === 'donut' && (
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie
-                        data={[
-                          { name: 'Used', value: currentVal },
-                          { name: 'Available', value: Math.max(0, 100 - currentVal) }
-                        ]}
-                        innerRadius={36}
-                        outerRadius={50}
-                        paddingAngle={3}
-                        dataKey="value"
-                      >
-                        <Cell fill={widget.color} />
-                        <Cell fill="var(--color-border-default)" />
-                      </Pie>
-                      <Tooltip
-                        contentStyle={{ backgroundColor: tooltipBg, borderColor: tooltipBorder, borderRadius: 6, color: tooltipText, fontSize: '0.75rem' }}
-                        formatter={(val: number) => [`${Number(val).toFixed(1)} ${widget.unit}`, '']}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-
-                {widget.type === 'stat' && (
-                  <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                    <div className="mono" style={{ fontSize: '2.5rem', fontWeight: 800, color: widget.color }}>
-                      {currentVal.toFixed(1)} <span style={{ fontSize: '1.2rem', fontWeight: 500 }}>{widget.unit}</span>
+                {widget.type === 'stat' && (() => {
+                  const breached = threshold !== null && latest !== undefined && latest > threshold;
+                  return (
+                    <div className="stat">
+                      <div className="stat-value mono" style={{ color: breached ? 'var(--color-danger-fg)' : widget.color }}>
+                        {formatValue(latest, widget.metric)}
+                      </div>
+                      {meta.percent && latest !== undefined && (
+                        <div className="stat-meter" aria-hidden="true">
+                          <div style={{ width: `${Math.min(100, latest)}%`, background: breached ? 'var(--color-danger-fg)' : widget.color }} />
+                          {threshold !== null && <span style={{ left: `${Math.min(100, threshold)}%` }} />}
+                        </div>
+                      )}
+                      <div className="stat-caption">
+                        {threshold === null
+                          ? 'No active rule on this metric'
+                          : breached
+                            ? `Above rule threshold (${formatValue(threshold, widget.metric)})`
+                            : `Below rule threshold (${formatValue(threshold, widget.metric)})`}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--color-fg-muted)', marginTop: 4 }}>
-                      Target limit: 85% · Status: {currentVal > 85 ? '🚨 Breached' : 'Passing checks'}
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           );
@@ -287,7 +240,7 @@ export const CustomizableDashboard: React.FC<CustomizableDashboardProps> = ({
       <AddWidgetModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onAdd={(newWidget) => setWidgets((prev) => [...prev, newWidget])}
+        onAdd={(w) => setWidgets((prev) => [...prev, w])}
         availableEntities={availableEntities}
         availableMetrics={availableMetrics}
       />

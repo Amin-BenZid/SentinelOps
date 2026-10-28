@@ -1,21 +1,33 @@
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# psutil needs a compiler on slim images; removed again in the same layer
-COPY agent/requirements.txt requirements.txt
+# ── Stage 1: build dependencies into an isolated virtualenv ──
+FROM python:3.11-slim AS builder
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gcc python3-dev \
- && pip install --no-cache-dir -r requirements.txt \
- && apt-get purge -y gcc python3-dev && apt-get autoremove -y \
+ && rm -rf /var/lib/apt/lists/*
+RUN python -m venv /opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+COPY agent/requirements.txt /tmp/requirements.txt
+RUN pip install --no-cache-dir -r /tmp/requirements.txt \
+ # packaging tools are only needed to install, never at runtime
+ && pip uninstall -y pip setuptools wheel
+
+# ── Stage 2: minimal runtime ──
+# No compiler, and no pip / setuptools / wheel: they are not needed to run the
+# agent and were the source of the HIGH CVEs Trivy reported (vendored
+# jaraco.context and wheel inside setuptools).
+FROM python:3.11-slim
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/* \
+ && python -m pip uninstall -y setuptools wheel pip \
  && useradd --uid 1000 --no-create-home --shell /usr/sbin/nologin sentinel \
  && mkdir -p /data && chown 1000:1000 /data
 
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
 COPY agent/ agent/
 COPY shared/ shared/
 
-ENV PYTHONUNBUFFERED=1 \
+ENV PATH=/opt/venv/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     DB_PATH=/data/sentinelops.db \
     MIGRATIONS_DIR=/app/shared/migrations \

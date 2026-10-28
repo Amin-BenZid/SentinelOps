@@ -1,7 +1,7 @@
 # SentinelOps — Project Context (Stage reference)
 
 > Living reference for the internship (stage) project. Read this first before any work session.
-> Last updated: 2026-10-28 · Version **v0.2** (all 16 review issues fixed; see §7)
+> Last updated: 2026-10-28 · Version **v0.2** (all 16 review issues fixed, see §7; UI/UX redesign, see §7b)
 
 ---
 
@@ -16,7 +16,7 @@ It:
 4. **Correlates** alerts on the same entity that start within 120 s into one incident (`inc-xxxxxxxx`).
 5. Captures a **process snapshot** (top 5 processes, real CPU %) when an alert fires, and explains every alert from the detector's **evidence** ("Why?" panel).
 6. **Notifies** through a **transactional outbox** → Slack / e-mail, with retries + exponential backoff, quiet hours, firing *and* resolved messages.
-7. Shows everything in a **real-time React dashboard** (authenticated WebSocket): alerts, rules CRUD, settings, widgets, container logs/restart, timeline, post-mortem export.
+7. Shows everything in a **real-time React dashboard** (authenticated WebSocket): live entity health, metric charts with the anomaly detector's expected band, incidents grouped by correlation, an alert detail drawer (why / chart / timeline / processes / post-mortem), rules, settings, container logs/restart.
 
 Lineage: concrete implementation of the earlier "Pulse" idea — phased roadmap, SQLite on purpose, AI progression **Rules → statistics/ML → LLM**, human-in-the-loop remediation.
 
@@ -87,10 +87,17 @@ browser ──HTTPS/WS──►:4000│ securityHeaders → requireAuth (deny-by
 | `server/src/services/docker.js` | Docker API via proxy, id validation, TTY-safe log demux |
 | `server/src/routes/api.js` | REST API (§5) |
 | `server/src/websocket.js` | `/ws`, token checked before upgrade, re-validated each tick |
-| `server/test/api.test.js` | 13 integration tests |
+| `server/test/api.test.js` | 14 integration tests |
 | `ui/src/api.ts` | wraps `fetch`: adds the Bearer token, logs out on 401 |
+| `ui/src/App.tsx` | shell: session, WebSocket, header, tabs, overview layout, alert actions |
+| `ui/src/components/HealthMap.tsx` | entity cards: status as text + icon + color, live CPU/Mem, "No data" for silent entities |
+| `ui/src/components/MetricChart.tsx` | time series with time axis, expected band (anomaly detector), red anomaly dots, rule threshold line |
+| `ui/src/components/CustomizableDashboard.tsx` | widgets (time series / compare entities / KPI vs rule), time range, editable layout |
+| `ui/src/components/IncidentFeed.tsx` | alerts grouped by incident, filters, quick Ack/Resolve |
+| `ui/src/components/AlertDrawer.tsx` | detail panel: Why it fired, metric chart, facts, Timeline, Processes, Post-mortem (copy/download) |
 | `ui/src/utils/diagnosis.ts` | evidence-based "Why did this fire?" (replaces the fake AI diagnoser) |
 | `ui/src/utils/postMortemGenerator.ts` | timeline/post-mortem from **real** timestamps |
+| `ui/src/utils/format.ts` | time-ago, 24 h clock, units per metric |
 | `.github/workflows/ci.yml` | tests + npm audit + UI build + image build + Trivy scan |
 | `inspect_db.py` | debug: `python inspect_db.py [db]` |
 
@@ -126,15 +133,15 @@ Metric names: `cpu_percent`, `memory_percent`, `disk_percent`, `load1` (host) ·
 | GET | `/alerts?limit` | firing first, then latest |
 | PATCH | `/alerts/:id/status` | `acknowledged` / `active` (un-ack or reopen) / `resolved` (writes outbox) |
 | DELETE | `/alerts/purge` | delete resolved alerts |
-| GET | `/metrics/history?entity&metric&limit&resolution=1m` | raw or rollup series |
-| GET | `/filters` · `/services` | entities/metrics seen in the last hour · health per entity + agent status |
+| GET | `/metrics/history?entity&metric&range=15m\|1h\|6h\|24h\|7d` | raw samples with band (≤ 1 h) or 1-min rollups (> 1 h, recent minutes aggregated on the fly); legacy `limit` still works |
+| GET | `/filters` · `/services` | entities/metrics seen in the last hour · health per entity (`stale` when silent 30 s+) + agent status |
 | GET/POST | `/rules` · PATCH `/rules/:id/toggle` · DELETE `/rules/:id` | validated CRUD (history is kept on delete) |
 | GET/POST | `/settings` | secrets never returned; blank secret = keep; `null` = clear |
 | POST | `/test/slack` | test message (https only) |
 | GET | `/notifications` | outbox log (delivery status, errors) |
 | GET | `/containers/:id/logs?tail` · POST `/containers/:id/restart` | via socket proxy, audited |
 
-WebSocket: `ws(s)://host/ws?token=<session token>` → `SNAPSHOT` then `TICK {latestMetrics, activeAlerts, agent}` every 2 s; closes with code 4401 when the session expires.
+WebSocket: `ws(s)://host/ws?token=<session token>` → `SNAPSHOT` then `TICK {latestMetrics, activeAlerts, services, agent}` every 2 s; closes with code 4401 when the session expires.
 
 ---
 
@@ -173,7 +180,19 @@ Local dev (Windows, no Docker) and tests: see `README.md`.
 
 Also found & fixed while testing: process snapshot always showed 0 % CPU (psutil first-call), Docker log demux broke on TTY containers, HTML injection in alert e-mails (now escaped), SSRF via arbitrary webhook URLs (https only), stale UI build.
 
-Verified on 2026-10-28: 37 agent tests + 13 server tests pass, UI type-checks and builds, full run against a real Docker daemon (threshold alert with `for`, anomaly alert, correlation, auto-resolve, Slack outage + retry, container logs/restart), and the real v0.1 database upgrades cleanly. **Not verified here:** building the Docker images (no Docker Hub access in the test sandbox) — run `docker compose up --build` once and check §9.
+Verified on 2026-10-28: 37 agent tests + 14 server tests pass, UI type-checks and builds, full run against a real Docker daemon (threshold alert with `for`, anomaly alert, correlation, auto-resolve, Slack outage + retry, container logs/restart), and the real v0.1 database upgrades cleanly. **Not verified here:** building the Docker images (no Docker Hub access in the test sandbox) — run `docker compose up --build` once and check §9.
+
+## 7b. UI/UX redesign (v0.2, same day)
+
+| Problem in v0.1 UI | Change |
+|---|---|
+| 7 equal-weight buttons on every alert card, wrapping on 3 lines | compact alert rows (only Ack / Resolve); click a row → **detail drawer** with tabs Overview (why it fired + metric chart + facts), Timeline, Processes, Post-mortem (copy / download .md) |
+| incidents computed by the backend but invisible | feed **grouped by incident** (correlation id): severity, entity, number of alerts, start time; open incidents first |
+| charts: no time axis, Y fixed 0–100 for every metric, anomaly band never drawn | `MetricChart`: real time axis (24 h clock), unit-aware Y axis, **shaded expected range** from the anomaly detector, red dots on anomalous samples, dashed rule threshold; **time range picker** 15m / 1h / 6h / 24h (rollups beyond 1 h) |
+| useless default widgets (duplicate CPU KPI, one-slice donut, hard-coded "85 %" target) | defaults: Host CPU, Host memory (time series), **Containers by CPU** (compare entities, red when over the rule), **Host disk** KPI with a meter against the real rule threshold |
+| health map never refreshed after login; stopped containers shown "Passing checks" for 5 min | entity list streamed over the WebSocket; **"No data"** status after 30 s of silence; live CPU/Mem on each card |
+| status by color only, 0.7 rem grey text, fixed 2-column layout | text + icon + color for every status, min ~0.75 rem, keyboard focus rings, `aria` labels, Esc closes the drawer; responsive (1 column < 1100 px, incidents first on small screens) |
+| gimmicky wording ("Security & System Advisories", "Crime Scene", fake breadcrumb) | plain ops vocabulary: Incidents, Processes, Timeline, Rules, Settings |
 
 ---
 
@@ -199,7 +218,7 @@ docker compose up -d --build
 docker compose ps -a              # 4 services Up, volume-init Exited (0)
 docker compose logs dashboard | Select-String -Context 0,3 "Initial admin"
 ```
-Open http://localhost:4000 → log in with `admin` + the printed password → you must choose a new password (≥ 8 chars) → dashboard shows **LIVE WS**.
+Open http://localhost:4000 → log in with `admin` + the printed password → you must choose a new password (≥ 8 chars) → the header shows a green **Live** pill.
 *If you upgraded an existing v0.1 volume, your old user/password, rules and settings are kept and no password is printed.*
 
 ### 9.2 Security
@@ -216,17 +235,18 @@ Open http://localhost:4000 → log in with `admin` + the printed password → yo
 
 ### 9.3 Threshold rule + `for` duration + notifications
 1. Get a test webhook: open https://webhook.site, copy your unique URL → Settings → Slack Webhook → **Test Webhook** → message appears on webhook.site → **Save**.
-2. Rules Engine → create `demo_cpu`: metric `docker_cpu_percent`, `>` `40`, For `20` s, critical.
+2. **Rules** tab → create `demo_cpu`: metric `docker_cpu_percent`, `>` `40`, For `20` s, critical.
 3. Start a CPU hog: `docker run -d --name cpu-hog --cpus 0.5 alpine sh -c "while :; do :; done"`
-4. Expected: nothing for ~20 s (PENDING), then a critical alert on `cpu-hog`; webhook.site receives the 🚨 message with the top process (`sh` ≈ 50 % CPU). Click **Why?** (observed vs threshold, held 20 s) and **Timeline** (first observed → fired → snapshot).
-5. **Ack** → badge "ack: <you>"; the alert stays and does not duplicate.
-6. `docker stop cpu-hog` → within ~5 s the alert becomes "auto-resolved" and webhook.site gets ✅ RESOLVED.
-7. Short blip: set For to 60 s, start and stop the hog after 15 s → **no** alert (dropped in PENDING).
+4. Expected: nothing for ~20 s (PENDING), then a critical incident on `cpu-hog` at the top of **Incidents**, the `cpu-hog` card turns red, the "Containers by CPU" bar turns red; webhook.site receives the 🚨 message with the top process (`sh` ≈ 50 % CPU).
+5. Click the alert row → the detail drawer opens: **Why it fired** (observed vs threshold, held 20 s), the metric chart with the dashed rule line, **Timeline** (first observed → fired → snapshot), **Processes**, **Post-mortem** (Download .md).
+6. **Acknowledge** → the row shows your name; the alert stays and does not duplicate.
+7. `docker stop cpu-hog` → within ~5 s the alert moves to **Resolved** ("Auto-resolved"), webhook.site gets ✅ RESOLVED, and after 30 s the card shows **No data**.
+8. Short blip: set For to 60 s, start and stop the hog after 15 s → **no** alert (dropped in PENDING).
 
 ### 9.4 Anomaly detection
 1. `docker run -d --name calm alpine sleep 1d` and wait ~1 min (baseline = 10 samples).
 2. `docker exec -d calm sh -c "while :; do :; done"`
-3. Expected after ~15 s: warning `anomaly:docker_cpu_percent` on `calm`, badge **anomaly**, **Why?** shows z-score and the expected band. It shares the incident id with any threshold alert on the same container. After ~1–2 min at the new level it auto-resolves (accepted as the new normal).
+3. Expected after ~15 s: warning `anomaly:docker_cpu_percent` on `calm`, badge **anomaly**; in the drawer, **Why it fired** shows the z-score and the chart shows the shaded expected range with red dots where the metric left it. It shares the incident id with any threshold alert on the same container. After ~1–2 min at the new level it auto-resolves (accepted as the new normal).
 4. Settings → untick *Statistical Anomaly Detection* → Save → no new anomaly alerts.
 
 ### 9.5 Memory rule
@@ -237,7 +257,7 @@ Settings → Slack URL `https://hooks.slack.com/services/invalid` → Save → t
 `fetch('/api/notifications').then(r=>r.json()).then(console.log)` → rows with `attempts` increasing and `last_error`, then `failed` after 5 attempts (~4 min: backoff 15 s, 30 s, 60 s, 120 s). Put the good URL back → new events are `sent`.
 
 ### 9.7 Container ops
-Click a container card → logs appear → **Restart** → `docker compose logs dashboard | Select-String audit` shows who restarted it.
+Click a container card (or **Container logs** in the alert drawer) → logs appear → **Restart** → `docker compose logs dashboard | Select-String audit` shows who restarted it.
 
 ### 9.8 Rules-as-code
 Delete `host_disk_full` in the UI → `docker compose restart agent` → it stays deleted. Then set `RULES_RESEED=true` in `.env` → `docker compose up -d agent` → the YAML rules are back (set it to false again).
@@ -245,16 +265,22 @@ Delete `host_disk_full` in the UI → `docker compose restart agent` → it stay
 ### 9.9 Prometheus target down
 `.env`: `PROMETHEUS_TARGETS=fake=http://nothing:9100/metrics` → `docker compose up -d agent` → rule `target_down`: metric `up`, `<`, `1`, For 10 → alert on `fake`.
 
-### 9.10 Automated tests
+### 9.10 UI checks
+- Time range 15m / 1h / 6h / 24h changes every time-series widget (6h+ uses 1-minute averages).
+- **Edit layout** → drag, resize, remove, **Add widget** (Time series / Compare / KPI) → reload: layout kept.
+- Light theme (sun icon), narrow window (< 1100 px: one column, incidents first), keyboard: Tab to an alert row, Enter opens it, Esc closes.
+
+### 9.11 Automated tests
 ```powershell
 venv\Scripts\activate; pip install -r agent\requirements-dev.txt; python -m pytest -q   # 37 passed
-cd server; npm install; npm test                                                      # 13 pass
+cd server; npm install; npm test                                                      # 14 pass
 cd ..\ui; npm install; npm run build
 ```
 
 ### Troubleshooting
 - `agent` fails to start on Docker Desktop with a mount error on `/` or `/proc`: comment the two `/host/proc` and `/rootfs` lines in `docker-compose.yml` (the agent falls back to the container's view).
-- **AGENT OFFLINE** badge: `docker compose logs agent`.
+- **Agent offline** pill in the header: `docker compose logs agent`.
+- `.env.example` was deleted from the repo (commit 7e215ea): create `.env` by hand if you need settings — all variables are listed in `docker-compose.yml`.
 - Quiet hours use `TZ` from `.env`.
 
 ---
@@ -275,7 +301,7 @@ cd ..\ui; npm install; npm run build
 Good report material from v0.2: v0.1 → v0.2 review table (§7) as a "technical debt & refactoring" section; threshold vs anomaly comparison; mean/stdev vs median/MAD (the step-change experiment).
 
 ### Presentation — ~15–20 slides
-Problem → objectives → existing solutions → architecture → alert lifecycle → **live demo** (§9.3 + §9.4: CPU hog → pending → alert → Slack → Why? → auto-resolve) → security → CI/CD → results → limits & perspectives. Record a backup video of the demo.
+Problem → objectives → existing solutions → architecture → alert lifecycle → **live demo** (§9.3 + §9.4: CPU hog → pending → incident → Slack → detail drawer with chart + band → auto-resolve) → security → CI/CD → results → limits & perspectives. Record a backup video of the demo.
 
 ---
 
@@ -289,3 +315,5 @@ Problem → objectives → existing solutions → architecture → alert lifecyc
 ## 12. Work log
 - 2026-10-28 — Full code review, this document created.
 - 2026-10-28 — v0.2: fixed all 16 review issues (§7), added tests + CI + README + `.env.example`; verified end-to-end except image builds.
+- 2026-10-28 — CI: npm audit failed on the pushed commit (old package.json had been restored locally); re-applied nodemailer 10.2.1 / express 4.22.3, added Dependabot. `.env.example` was deleted on GitHub (commit 7e215ea).
+- 2026-10-28 — UI/UX redesign (§7b), verified in Chromium (dark, light, mobile width) against live data.

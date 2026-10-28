@@ -64,8 +64,9 @@ export interface Alert {
 export interface ServiceHealth {
   id: string;
   source: string;
-  status: 'healthy' | 'warning' | 'critical';
+  status: 'healthy' | 'warning' | 'critical' | 'stale';
   alertCount: number;
+  last_seen?: Timestamp;
 }
 
 export interface MonitoringRule {
@@ -92,7 +93,10 @@ export interface AppSettings {
   anomaly_detection_enabled?: string;
 }
 
-export type WidgetType = 'area' | 'bar' | 'donut' | 'stat';
+/** area = time series with anomaly band · bar = compare entities · stat = current value vs rule */
+export type WidgetType = 'area' | 'bar' | 'stat';
+
+export type TimeRange = '15m' | '1h' | '6h' | '24h';
 
 export interface DashboardWidget {
   id: string;
@@ -103,4 +107,13 @@ export interface DashboardWidget {
   width: 'half' | 'full';
   color: string;
   unit: string;
+}
+export interface SeriesPoint {
+  timestamp: Timestamp;
+  metric_value: number;
+  is_anomaly?: number;
+  lower_bound?: number | null;
+  upper_bound?: number | null;
+  min_value?: number;
+  max_value?: number;
 }

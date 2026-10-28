@@ -1,4 +1,5 @@
 import { Alert, ProcessInfo } from '../types';
+import { clock } from './format';
 
 export interface Explanation {
   headline: string;
@@ -29,7 +30,7 @@ export function explainAlert(alert: Alert): Explanation {
   }
 
   const firedAfter = Math.round((alert.fired_at - alert.first_seen) / 1000);
-  if (firedAfter > 0) details.push(`First breach at ${new Date(alert.first_seen).toLocaleTimeString()}, fired ${firedAfter}s later.`);
+  if (firedAfter > 0) details.push(`First breach at ${clock(alert.first_seen)}, fired ${firedAfter}s later.`);
   details.push(`Breach observed on ${alert.hit_count} evaluation cycle(s).`);
 
   let procs: ProcessInfo[] = [];

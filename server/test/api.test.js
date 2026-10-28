@@ -222,3 +222,30 @@ test('security headers are set', async () => {
   assert.match(r.headers.get('content-security-policy'), /default-src 'self'/);
   assert.equal(r.headers.get('x-powered-by'), null);
 });
+
+test('metrics history supports time ranges and services report stale entities', async () => {
+  const now = Date.now();
+  const ins = db.prepare(`INSERT INTO metrics (ts, source, entity_id, metric_name, metric_value, is_anomaly, lower_bound, upper_bound)
+                          VALUES (?, ?, ?, 'cpu_percent', ?, ?, 0, 50)`);
+  ins.run(now - 2 * 3_600_000, 'host', 'h1', 10, 0);   // outside 1h
+  ins.run(now - 20 * 60_000, 'host', 'h1', 20, 0);     // inside 1h, outside 15m
+  ins.run(now - 5_000, 'host', 'h1', 90, 1);           // fresh, anomalous
+  ins.run(now - 120_000, 'docker', 'old-box', 5, 0);   // silent for 2 min -> stale
+
+  let r = await call('GET', '/metrics/history?entity=h1&metric=cpu_percent&range=15m');
+  assert.deepEqual(r.body.data.map((p) => p.metric_value), [90]);
+  assert.equal(r.body.data[0].is_anomaly, 1);
+  assert.equal(r.body.data[0].upper_bound, 50);
+  r = await call('GET', '/metrics/history?entity=h1&metric=cpu_percent&range=1h');
+  assert.deepEqual(r.body.data.map((p) => p.metric_value), [20, 90]);
+  r = await call('GET', '/metrics/history?entity=h1&metric=cpu_percent&range=6h');
+  assert.equal(r.body.resolution, '1m');
+  // no rollups stored yet -> recent raw data is aggregated on the fly
+  assert.deepEqual(r.body.data.map((p) => p.metric_value), [10, 20, 90]);
+
+  r = await call('GET', '/services');
+  const byId = Object.fromEntries(r.body.services.map((s) => [s.id, s]));
+  assert.equal(byId.h1.status, 'healthy');
+  assert.equal(byId['old-box'].status, 'stale');
+  db.prepare('DELETE FROM metrics').run();
+});

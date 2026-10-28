@@ -1,7 +1,7 @@
 import { WebSocketServer } from 'ws';
 import db from './db.js';
 import { authService } from './services/auth.js';
-import { recentAlerts, agentStatus } from './routes/api.js';
+import { recentAlerts, agentStatus, servicesSnapshot } from './routes/api.js';
 
 // Browsers cannot set an Authorization header on a WebSocket, so the session
 // token is passed as ?token=... and validated BEFORE the upgrade completes.
@@ -41,7 +41,7 @@ export function setupWebSocket(server, intervalMs = 2000) {
     ws.on('pong', () => { ws.isAlive = true; });
     ws.on('message', () => {}); // clients do not send commands
     try {
-      ws.send(JSON.stringify({ type: 'SNAPSHOT', activeAlerts: recentAlerts(), latestMetrics: latestMetrics(), agent: agentStatus() }));
+      ws.send(JSON.stringify({ type: 'SNAPSHOT', activeAlerts: recentAlerts(), latestMetrics: latestMetrics(), services: servicesSnapshot(), agent: agentStatus() }));
     } catch (e) { console.error('[ws] snapshot failed:', e.message); }
   });
 
@@ -54,6 +54,7 @@ export function setupWebSocket(server, intervalMs = 2000) {
         timestamp: Date.now(),
         latestMetrics: latestMetrics(),
         activeAlerts: recentAlerts(),
+        services: servicesSnapshot(),
         agent: agentStatus(),
       });
     } catch (e) {

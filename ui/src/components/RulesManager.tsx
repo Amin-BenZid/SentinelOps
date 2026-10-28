@@ -155,7 +155,7 @@ export const RulesManager: React.FC = () => {
         <div className="gh-box-header">
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             {editingId ? <Pencil size={16} color="var(--color-attention-fg)" /> : <Plus size={16} color="var(--color-accent-fg)" />}
-            {editingId ? `Editing Rule: ${editingId}` : 'Create Rule Definition'}
+            {editingId ? `Editing rule ${editingId}` : 'New rule'}
           </span>
           {editingId && (
             <button onClick={handleCancelEdit} className="gh-btn" style={{ padding: '2px 8px' }}>
@@ -187,7 +187,7 @@ export const RulesManager: React.FC = () => {
             </div>
 
             <div>
-              <label style={labelStyle}>Telemetry Metric</label>
+              <label style={labelStyle}>Metric</label>
               <input
                 list="known-metrics"
                 required
@@ -291,7 +291,7 @@ export const RulesManager: React.FC = () => {
       <div className="gh-box">
         <div className="gh-box-header">
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Sliders size={16} /> Active Protection & Monitoring Rules
+            <Sliders size={16} /> Alerting rules
           </span>
           <span className="gh-counter">{rules.length}</span>
         </div>

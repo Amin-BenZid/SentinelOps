@@ -1,4 +1,5 @@
 import { Alert, ProcessInfo } from '../types';
+import { clock } from './format';
 
 export interface TimelineEvent {
   time: string;
@@ -12,7 +13,7 @@ export interface TimelineEvent {
  */
 export function buildTimeline(alert: Alert, sisterAlerts: Alert[] = []): TimelineEvent[] {
   const events: (TimelineEvent & { at: number })[] = [];
-  const t = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const t = clock;
   const push = (at: number, title: string, desc: string, type: TimelineEvent['type']) =>
     events.push({ at, time: t(at), title, desc, type });
 
@@ -111,14 +112,14 @@ The condition was observed on **${alert.hit_count}** evaluation cycles. Summary:
 
 ---
 
-## 2. Forensic Evidence (Crime Scene)
-The following kernel processes were captured at the exact moment of threshold violation:
+## 2. Process snapshot at fire time
+Top processes on the host when the alert fired:
 
 ${processTable}
 
 ---
 
-## 3. Incident Causality Timeline (Flight Recorder)
+## 3. Timeline
 ${timelineMd}
 
 ---
