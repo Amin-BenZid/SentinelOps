@@ -17,3 +17,6 @@ data/*.db-shm
 
 # Environment variables
 .env
+
+# sen launcher logs
+.sentinelops/

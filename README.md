@@ -25,15 +25,31 @@ browser ──► dashboard :4000 (Node/Express + React) ──► docker-proxy-
 | **Security** | deny-by-default API, hashed session tokens with TTL + idle timeout, login rate limiting, no default password, write-only secrets, CSP + security headers, Docker socket only through least-privilege proxies, non-root read-only containers |
 | **Data** | epoch-ms timestamps, raw data 24 h + 1-minute rollups 7 d, automatic purge |
 
-## Quick start (Docker)
+## Quick start
+
+Requires Docker (Desktop on Windows/macOS) and Python 3.8+.
 
 ```bash
-cp .env.example .env          # optional: set ADMIN_PASSWORD, TZ, Slack/SMTP...
-docker compose up -d --build
-docker compose logs dashboard | grep -A3 "Initial admin"   # generated password (if ADMIN_PASSWORD is empty)
+./sen run            # Linux / macOS / EC2      (Windows: sen run)
 ```
 
-Open http://localhost:4000, log in as `admin`, choose a new password.
+`sen` builds the images, starts the stack, waits until the dashboard **and** the agent are healthy, then prints:
+
+```
+✔ SentinelOps is ready   in 94s
+  Dashboard   http://localhost:4000
+  Login       admin / <generated password>  (change it at first login)
+```
+
+| Command | |
+|---|---|
+| `sen run [--public] [--port N] [--no-build]` | build + start + wait until ready (`--public` on a server) |
+| `sen status` | containers, dashboard and agent health |
+| `sen logs [agent\|dashboard]` | follow logs |
+| `sen password` | show the initial admin password |
+| `sen stop` / `sen restart` / `sen update` | stop (data kept) / restart / `git pull` + run |
+
+Plain Docker Compose still works: `docker compose up -d --build`.
 
 ## Local development (no Docker)
 

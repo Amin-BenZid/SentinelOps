@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SentinelOps — Versioned Roadmap</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0a0c10;
+    --surface:   #0f1218;
+    --border:    #1e2330;
+    --border-hi: #2a3245;
+    --text:      #c9d1e0;
+    --muted:     #5a6580;
+    --dim:       #3a4255;
+
+    --v01: #00d4aa;
+    --v02: #3b82f6;
+    --v03: #a855f7;
+    --v10: #f59e0b;
+    --v20: #ef4444;
+
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 28px 40px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    background: rgba(10,12,16,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+  }
+  .logo span { color: var(--v01); }
+
+  .tagline {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* ── NAV TABS ── */
+  .nav {
+    display: flex;
+    gap: 4px;
+    padding: 0 40px;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .nav-btn {
+    padding: 14px 20px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+  }
+
+  .nav-btn:hover { color: var(--text); }
+
+  .nav-btn.active {
+    color: #fff;
+    border-bottom-color: var(--accent-color, var(--v01));
+  }
+
+  /* ── MAIN ── */
+  main { padding: 40px; max-width: 1100px; margin: 0 auto; }
+
+  .version-panel { display: none; }
+  .version-panel.active { display: block; }
+
+  /* ── VERSION HERO ── */
+  .v-hero {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 24px;
+    align-items: start;
+    margin-bottom: 40px;
+    padding-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .v-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 12px;
+    letter-spacing: 1px;
+  }
+
+  .v-title {
+    font-family: var(--mono);
+    font-size: 28px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 8px;
+    line-height: 1.2;
+  }
+
+  .v-subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    max-width: 520px;
+    line-height: 1.7;
+  }
+
+  .v-meta {
+    text-align: right;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+
+  .v-timeline {
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .v-goal {
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  /* ── SECTIONS ── */
+  .section {
+    margin-bottom: 36px;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* ── FEATURE GRID ── */
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 12px;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    transition: border-color 0.2s;
+  }
+
+  .feature-card:hover { border-color: var(--border-hi); }
+
+  .feature-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .feature-name .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .feature-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+
+  /* ── TECH STACK ── */
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+
+  .tech-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .tech-layer {
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+  }
+
+  .tech-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    text-align: right;
+  }
+
+  /* ── WHY BOX ── */
+  .why-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+  }
+
+  .why-box p {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.8;
+    margin-bottom: 12px;
+  }
+  .why-box p:last-child { margin-bottom: 0; }
+
+  /* ── CODE BLOCK ── */
+  .code-block {
+    background: #070910;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+    color: #8892a4;
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .code-block .c-green  { color: #00d4aa; }
+  .code-block .c-blue   { color: #60a5fa; }
+  .code-block .c-purple { color: #c084fc; }
+  .code-block .c-yellow { color: #fbbf24; }
+  .code-block .c-red    { color: #f87171; }
+  .code-block .c-dim    { color: #3d4560; }
+  .code-block .c-white  { color: #e2e8f0; }
+
+  /* ── NOT INCLUDED ── */
+  .not-included {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .ni-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: rgba(239,68,68,0.07);
+    border: 1px solid rgba(239,68,68,0.2);
+    color: #f87171;
+  }
+
+  /* ── TIMELINE STRIP ── */
+  .timeline-strip {
+    display: flex;
+    gap: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 36px;
+  }
+
+  .ts-item {
+    flex: 1;
+    padding: 14px 16px;
+    border-right: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: center;
+  }
+  .ts-item:last-child { border-right: none; }
+  .ts-item:hover { background: var(--surface); }
+  .ts-item.current { background: var(--surface); }
+
+  .ts-version {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .ts-name {
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .ts-time {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  /* ── PRIORITY BADGE ── */
+  .priority {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 3px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .priority.must { background: rgba(0,212,170,0.1); color: #00d4aa; border: 1px solid rgba(0,212,170,0.25); }
+  .priority.nice { background: rgba(91,130,251,0.1); color: #60a5fa; border: 1px solid rgba(91,130,251,0.25); }
+  .priority.opt  { background: rgba(168,85,247,0.1); color: #c084fc; border: 1px solid rgba(168,85,247,0.25); }
+
+  @media (max-width: 640px) {
+    header { padding: 16px 20px; }
+    .nav { padding: 0 20px; }
+    main { padding: 24px 20px; }
+    .v-hero { grid-template-columns: 1fr; }
+    .v-meta { text-align: left; }
+    .feature-grid { grid-template-columns: 1fr; }
+    .tech-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Sentinel<span>Ops</span></div>
+  <div class="tagline">versioned roadmap · all features · all tech</div>
+</header>
+
+<nav class="nav" id="nav">
+  <button class="nav-btn active" data-v="v01" style="--accent-color:#00d4aa">v0.1 — Core</button>
+  <button class="nav-btn"        data-v="v02" style="--accent-color:#3b82f6">v0.2 — Intelligence</button>
+  <button class="nav-btn"        data-v="v03" style="--accent-color:#a855f7">v0.3 — AI Chat</button>
+  <button class="nav-btn"        data-v="v10" style="--accent-color:#f59e0b">v1.0 — Full Platform</button>
+  <button class="nav-btn"        data-v="v20" style="--accent-color:#ef4444">v2.0 — Chaos & FinOps</button>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════ v0.1 ═══════════════════════════════ -->
+<div class="version-panel active" id="v01">
+
+  <div class="v-hero">
+    <div>
+      <div class="v-badge" style="background:rgba(0,212,170,0.1);color:#00d4aa;border:1px solid rgba(0,212,170,0.25)">v0.1 ALPHA</div>
+      <div class="v-title">The Core</div>
+      <div class="v-subtitle">One agent. One command. Unified metrics, smart alert correlation, and a clean dashboard. The foundation everything else builds on — bulletproof before we go further.</div>
+    </div>
+    <div class="v-meta">
+      <div class="v-timeline">Months 1 – 3</div>
+      <div class="v-goal" style="border-color:rgba(0,212,170,0.3);color:#00d4aa">Goal: best lightweight<br>unified monitoring tool</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Features</div>
+    <div class="feature-grid">
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Universal Metric Collection <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Connects to Prometheus, Docker API, and a lightweight push agent for bare servers. No Prometheus? Drop a single binary. Works on any Linux/Windows host.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Layer 1 — Rules Engine <span class="priority must">MUST</span></div>
+        <div class="feature-desc">YAML-defined threshold rules that fire instantly from day one. No training data required. cpu &gt; 85% for 3min → alert. Simple, fast, reliable.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Alert Deduplication <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Groups duplicate alerts from the same root event. One cascading failure = one notification, not fifty. Fingerprinting + time-window bucketing.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Alert Correlation <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Links related alerts together — CPU spike + memory high + latency spike become one grouped event with a single severity score.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>React Dashboard <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Live service health overview, active alert feed, metric sparklines, recent events. Clean, fast, mobile-responsive. Built with Recharts — no Grafana dependency.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Slack + Email Alerts <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Webhook-based Slack notifications and SMTP email alerts. Configurable per-rule severity routing. Quiet hours support to avoid 3AM noise for low-severity events.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Docker Compose Deploy <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Truly one command: `docker compose up -d`. Single SQLite database by default. No Redis. No TimescaleDB. No external dependencies in the default config.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Native CloudWatch Support <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Direct AWS CloudWatch API integration. No Prometheus exporter needed. Just AWS credentials in config and you're ingesting EC2, RDS, Lambda metrics immediately.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Log Ingestion (Basic) <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Tail local log files and parse error patterns. Regex-based rules on log content. Useful for teams with no metrics setup at all — logs are universal.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#00d4aa"></span>Webhook Ingest API <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">HTTP POST endpoint for custom metric ingestion. Any system that can make an HTTP call can feed SentinelOps. Simple JSON schema, no auth friction in v0.1.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Tech Stack</div>
+    <div class="tech-grid">
+      <div class="tech-row"><span class="tech-layer">Agent core</span><span class="tech-name">Python 3.11</span></div>
+      <div class="tech-row"><span class="tech-layer">Async runtime</span><span class="tech-name">asyncio + aiohttp</span></div>
+      <div class="tech-row"><span class="tech-layer">Database</span><span class="tech-name">SQLite (default)</span></div>
+      <div class="tech-row"><span class="tech-layer">Metrics source</span><span class="tech-name">Prometheus HTTP API</span></div>
+      <div class="tech-row"><span class="tech-layer">Cloud SDK</span><span class="tech-name">boto3 (AWS)</span></div>
+      <div class="tech-row"><span class="tech-layer">Container source</span><span class="tech-name">Docker SDK for Python</span></div>
+      <div class="tech-row"><span class="tech-layer">Frontend</span><span class="tech-name">React + TypeScript</span></div>
+      <div class="tech-row"><span class="tech-layer">Charts</span><span class="tech-name">Recharts</span></div>
+      <div class="tech-row"><span class="tech-layer">Dashboard API</span><span class="tech-name">Node.js + Express</span></div>
+      <div class="tech-row"><span class="tech-layer">Real-time</span><span class="tech-name">WebSocket (ws)</span></div>
+      <div class="tech-row"><span class="tech-layer">Notifications</span><span class="tech-name">Slack Webhooks + Nodemailer</span></div>
+      <div class="tech-row"><span class="tech-layer">Deploy</span><span class="tech-name">Docker Compose</span></div>
+      <div class="tech-row"><span class="tech-layer">CI/CD</span><span class="tech-name">GitHub Actions</span></div>
+      <div class="tech-row"><span class="tech-layer">Security</span><span class="tech-name">Trivy + CodeQL + GitLeaks</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Architecture</div>
+    <div class="code-block"><span class="c-dim">┌─────────────────────────────────────────────────────────┐</span>
+<span class="c-dim">│</span>                    <span class="c-green">DATA SOURCES</span>                         <span class="c-dim">│</span>
+<span class="c-dim">│</span>   <span class="c-white">Prometheus</span> · <span class="c-white">Docker API</span> · <span class="c-white">Push Agent</span> · <span class="c-white">CloudWatch</span>   <span class="c-dim">│</span>
+<span class="c-dim">│</span>           <span class="c-white">Log files</span> · <span class="c-white">Custom Webhook</span>                      <span class="c-dim">│</span>
+<span class="c-dim">└────────────────────────┬────────────────────────────────┘</span>
+                         <span class="c-dim">↓</span>
+<span class="c-dim">┌─────────────────────────────────────────────────────────┐</span>
+<span class="c-dim">│</span>               <span class="c-green">PYTHON AGENT CORE</span>                         <span class="c-dim">│</span>
+<span class="c-dim">│</span>   <span class="c-white">Collector</span> → <span class="c-white">Rules Engine</span> → <span class="c-white">Correlator</span> → <span class="c-white">Deduper</span>    <span class="c-dim">│</span>
+<span class="c-dim">└────────────────────────┬────────────────────────────────┘</span>
+                         <span class="c-dim">↓</span>
+           <span class="c-dim">┌────────────────────────────┐</span>
+           <span class="c-dim">│</span>       <span class="c-green">SQLite DB</span>             <span class="c-dim">│</span>
+           <span class="c-dim">│</span>  alerts · metrics · rules  <span class="c-dim">│</span>
+           <span class="c-dim">└────────────┬───────────────┘</span>
+                        <span class="c-dim">↓</span>
+<span class="c-dim">┌─────────────────────────────────────────────────────────┐</span>
+<span class="c-dim">│</span>         <span class="c-green">NODE.JS API</span>  +  <span class="c-green">REACT DASHBOARD</span>              <span class="c-dim">│</span>
+<span class="c-dim">│</span>   Live alerts · Health map · Metrics · Config UI        <span class="c-dim">│</span>
+<span class="c-dim">└─────────────────────────────────────────────────────────┘</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Deliberately NOT in v0.1</div>
+    <div class="not-included">
+      <span class="ni-tag">ML / AI</span>
+      <span class="ni-tag">LLM integration</span>
+      <span class="ni-tag">Incident management</span>
+      <span class="ni-tag">Auto-remediation</span>
+      <span class="ni-tag">Cost tracking</span>
+      <span class="ni-tag">Predictions</span>
+      <span class="ni-tag">Chaos engineering</span>
+      <span class="ni-tag">Kubernetes / Helm</span>
+      <span class="ni-tag">On-call routing</span>
+      <span class="ni-tag">Redis / TimescaleDB</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Why this scope</div>
+    <div class="why-box">
+      <p>v0.1 does one thing: replace the pain of wiring Prometheus + Grafana + Alertmanager together. That's already a win developers will tweet about. Shipping this bulletproof is more valuable than shipping v0.5 half-broken.</p>
+      <p>SQLite as default keeps the Docker Compose truly simple — one compose file, two containers (agent + dashboard). No database administration. No connection strings. It just works.</p>
+      <p>The goal for v0.1 is the first GitHub star and the first "good first issue" contributor. Not feature completeness.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════ v0.2 ═══════════════════════════════ -->
+<div class="version-panel" id="v02">
+
+  <div class="v-hero">
+    <div>
+      <div class="v-badge" style="background:rgba(59,130,246,0.1);color:#60a5fa;border:1px solid rgba(59,130,246,0.25)">v0.2 BETA</div>
+      <div class="v-title">Intelligence</div>
+      <div class="v-subtitle">The monitoring gets smarter. ML anomaly detection activates after 24h of data. Human-in-the-loop remediation replaces dangerous auto-actions. Incidents get their own lifecycle.</div>
+    </div>
+    <div class="v-meta">
+      <div class="v-timeline">Months 4 – 6</div>
+      <div class="v-goal" style="border-color:rgba(59,130,246,0.3);color:#60a5fa">Goal: ML that actually<br>helps, safely</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Features in v0.2</div>
+    <div class="feature-grid">
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>Layer 2 — Isolation Forest ML <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Trains on your infra's normal baseline after 24h of data. Detects statistical anomalies without fixed thresholds. CPU spikes that are normal for you won't fire. Runs in a separate lightweight process — never on the monitored host.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>Human-in-the-Loop Remediation <span class="priority must">MUST</span></div>
+        <div class="feature-desc">AI suggests an action. Human approves with one Slack button click. No autonomous changes to production. Eliminates the liability of auto-remediation while keeping the speed advantage.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>Incident Management <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Auto-create incidents from anomalies. Open → In Progress → Resolved lifecycle. Timeline of all events during the incident. MTTR and MTTD tracking over time.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>On-Call Rotation <span class="priority must">MUST</span></div>
+        <div class="feature-desc">YAML-defined rotation schedule. Auto-assign incidents to the on-call engineer. Escalation after N minutes if unacknowledged. Email + Slack notification on assignment.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>Kubernetes / Helm Chart <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Production-grade Helm chart for K8s deployment. Connects to kube-state-metrics and cAdvisor automatically. HPA-aware — doesn't alert on expected scaling events.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>Plugin System <span class="priority must">MUST</span></div>
+        <div class="feature-desc">BasePlugin interface in Python. Community can write and submit plugins via PR. Built-in plugins: restart_pod, restart_container, notify_slack, notify_email, run_script, webhook.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>Azure Monitor + GCP Support <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Native Azure Monitor API and GCP Cloud Monitoring API connectors. Full multi-cloud support without requiring Prometheus exporters on any provider.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>PostgreSQL Upgrade Path <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">One config flag migrates from SQLite to PostgreSQL for teams with large metric volumes. TimescaleDB extension optional for serious time-series workloads.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#3b82f6"></span>Adaptive Thresholds <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Rules engine learns your normal patterns and adjusts thresholds dynamically. Friday traffic spikes stop generating false alerts. Seasonal patterns are respected automatically.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Tech Added in v0.2</div>
+    <div class="tech-grid">
+      <div class="tech-row"><span class="tech-layer">ML engine</span><span class="tech-name">scikit-learn (Isolation Forest)</span></div>
+      <div class="tech-row"><span class="tech-layer">ML process</span><span class="tech-name">Separate Python sidecar</span></div>
+      <div class="tech-row"><span class="tech-layer">Model storage</span><span class="tech-name">joblib serialization</span></div>
+      <div class="tech-row"><span class="tech-layer">DB upgrade</span><span class="tech-name">PostgreSQL (optional)</span></div>
+      <div class="tech-row"><span class="tech-layer">Time-series</span><span class="tech-name">TimescaleDB (optional)</span></div>
+      <div class="tech-row"><span class="tech-layer">K8s source</span><span class="tech-name">kube-state-metrics</span></div>
+      <div class="tech-row"><span class="tech-layer">K8s source</span><span class="tech-name">cAdvisor</span></div>
+      <div class="tech-row"><span class="tech-layer">K8s deploy</span><span class="tech-name">Helm chart</span></div>
+      <div class="tech-row"><span class="tech-layer">Cloud SDK</span><span class="tech-name">azure-mgmt-monitor</span></div>
+      <div class="tech-row"><span class="tech-layer">Cloud SDK</span><span class="tech-name">google-cloud-monitoring</span></div>
+      <div class="tech-row"><span class="tech-layer">Migrations</span><span class="tech-name">Alembic</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Human-in-the-Loop Flow</div>
+    <div class="code-block"><span class="c-blue">ML detects anomaly</span> → confidence: 0.91
+         ↓
+<span class="c-white">Slack message sent to on-call engineer:</span>
+
+  ⚠️  <span class="c-yellow">api-service</span> — CPU 94% · Memory 87% · Latency 2.3s
+  <span class="c-green">ML confidence: 91%</span> · Triggered by: deploy at 14:32
+
+  <span class="c-white">Suggested actions:</span>
+  <span class="c-green">[ ✅ Restart Pod ]</span>  <span class="c-blue">[ 🔄 Rollback Deploy ]</span>  <span class="c-dim">[ ❌ Dismiss ]</span>
+
+         ↓
+<span class="c-white">Engineer clicks</span> <span class="c-green">[ ✅ Restart Pod ]</span>
+         ↓
+<span class="c-green">Action executed safely</span> · <span class="c-white">Incident #42 updated</span>
+<span class="c-dim"># Zero autonomous production changes. Zero liability.</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Deliberately NOT in v0.2</div>
+    <div class="not-included">
+      <span class="ni-tag">LSTM models</span>
+      <span class="ni-tag">LLM / AI Chat</span>
+      <span class="ni-tag">Full auto-remediation</span>
+      <span class="ni-tag">Cost tracking</span>
+      <span class="ni-tag">Predictions / forecasting</span>
+      <span class="ni-tag">Chaos engineering</span>
+      <span class="ni-tag">Context memory</span>
+      <span class="ni-tag">Postmortem generation</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════ v0.3 ═══════════════════════════════ -->
+<div class="version-panel" id="v03">
+
+  <div class="v-hero">
+    <div>
+      <div class="v-badge" style="background:rgba(168,85,247,0.1);color:#c084fc;border:1px solid rgba(168,85,247,0.25)">v0.3 PUBLIC PREVIEW</div>
+      <div class="v-title">AI Chat</div>
+      <div class="v-subtitle">The wow feature. Talk to your infrastructure in plain English. The LLM is optional, runs locally via Ollama, and never touches your infra directly — it only reads and explains.</div>
+    </div>
+    <div class="v-meta">
+      <div class="v-timeline">Months 7 – 9</div>
+      <div class="v-goal" style="border-color:rgba(168,85,247,0.3);color:#c084fc">Goal: the demo that<br>goes viral</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Features in v0.3</div>
+    <div class="feature-grid">
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>Layer 3 — LLM Root Cause <span class="priority must">MUST</span></div>
+        <div class="feature-desc">LLM explains anomalies in plain English with metric context pre-aggregated before sending. Works with Ollama (local, free, private), OpenAI, or Anthropic. OFF by default — opt-in only.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>AI Chat Interface <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Natural language questions about your infra answered in real time. "Why is api-service slow?" "How bad was last week?" "Will I have issues Friday?" The AI reads from your DB — never touches prod.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>Context Memory — Incidents <span class="priority must">MUST</span></div>
+        <div class="feature-desc">AI remembers past incidents and references them. "This pattern matches Incident #31 from 3 weeks ago. Last time it was fixed by rolling back v2.3.1." Gets smarter the longer it runs.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>Postmortem Auto-Draft <span class="priority must">MUST</span></div>
+        <div class="feature-desc">When an incident is resolved, LLM drafts a postmortem with timeline, root cause, impact, and action items. Engineer reviews and edits — never published automatically.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>Change Tracking <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Records every deploy, config change, and scaling event with a timestamp. AI correlates anomalies with recent changes automatically. "CPU spike started 2 minutes after your deploy."</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>Runbook Integration <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Point SentinelOps at a folder of markdown runbooks. LLM reads them and references relevant runbook steps during incidents. Your team's knowledge becomes instantly searchable.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>Service Topology Map <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Auto-discovers which services call which from network metrics and traces. Used by LLM to trace cascading failures upstream. Visualized as an interactive graph in the dashboard.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#a855f7"></span>Full Documentation Site <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Docusaurus-based docs site. Getting started in 5 minutes. Provider setup guides for AWS, GCP, Azure. Plugin authoring guide. Deployed to GitHub Pages automatically.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Tech Added in v0.3</div>
+    <div class="tech-grid">
+      <div class="tech-row"><span class="tech-layer">LLM runtime</span><span class="tech-name">Ollama (local)</span></div>
+      <div class="tech-row"><span class="tech-layer">LLM abstraction</span><span class="tech-name">LiteLLM</span></div>
+      <div class="tech-row"><span class="tech-layer">LLM providers</span><span class="tech-name">Ollama / OpenAI / Anthropic</span></div>
+      <div class="tech-row"><span class="tech-layer">Recommended model</span><span class="tech-name">llama3.1:8b (free)</span></div>
+      <div class="tech-row"><span class="tech-layer">Context window mgmt</span><span class="tech-name">Pre-aggregation layer (Python)</span></div>
+      <div class="tech-row"><span class="tech-layer">Memory store</span><span class="tech-name">PostgreSQL (incident history)</span></div>
+      <div class="tech-row"><span class="tech-layer">Topology</span><span class="tech-name">NetworkX graph library</span></div>
+      <div class="tech-row"><span class="tech-layer">Docs site</span><span class="tech-name">Docusaurus</span></div>
+      <div class="tech-row"><span class="tech-layer">Chat UI</span><span class="tech-name">React + WebSocket streaming</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">AI Chat — How It Works Safely</div>
+    <div class="code-block"><span class="c-white">User:</span> <span class="c-green">"Why is my API slow right now?"</span>
+
+<span class="c-dim"># SentinelOps does NOT send raw metrics to the LLM</span>
+<span class="c-dim"># It pre-aggregates first:</span>
+
+<span class="c-blue">context_built = {</span>
+  <span class="c-yellow">"service"</span>:        <span class="c-green">"api-service"</span>,
+  <span class="c-yellow">"cpu_now"</span>:         <span class="c-white">94</span>,
+  <span class="c-yellow">"cpu_1h_avg"</span>:      <span class="c-white">67</span>,
+  <span class="c-yellow">"cpu_24h_avg"</span>:     <span class="c-white">34</span>,
+  <span class="c-yellow">"last_deploy"</span>:    <span class="c-green">"14:32 — v2.5.1"</span>,
+  <span class="c-yellow">"past_incidents"</span>:  <span class="c-white">2</span>,   <span class="c-dim"># similar pattern seen before</span>
+  <span class="c-yellow">"open_incidents"</span>:  <span class="c-white">1</span>
+<span class="c-blue">}</span>
+
+<span class="c-dim"># Small context → fast + accurate response</span>
+<span class="c-dim"># LLM never sees raw time-series dumps</span>
+
+<span class="c-white">AI:</span> <span class="c-purple">"CPU is at 94%, well above your 24h average of 34%.
+The spike started at 14:34 — 2 minutes after deploy
+v2.5.1. This matches Incident #31 from May 3rd where
+the same pattern was caused by a memory leak in the
+upload endpoint. Suggest checking that deploy first."</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Deliberately NOT in v0.3</div>
+    <div class="not-included">
+      <span class="ni-tag">LSTM models</span>
+      <span class="ni-tag">Full auto-remediation</span>
+      <span class="ni-tag">Cost tracking</span>
+      <span class="ni-tag">Predictive forecasting</span>
+      <span class="ni-tag">Chaos engineering</span>
+      <span class="ni-tag">FinOps engine</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════ v1.0 ═══════════════════════════════ -->
+<div class="version-panel" id="v10">
+
+  <div class="v-hero">
+    <div>
+      <div class="v-badge" style="background:rgba(245,158,11,0.1);color:#fbbf24;border:1px solid rgba(245,158,11,0.25)">v1.0 STABLE</div>
+      <div class="v-title">Full Platform</div>
+      <div class="v-subtitle">The complete vision lands. Cost intelligence, predictive forecasting, and opt-in auto-remediation with confidence thresholds. Public launch on Hacker News and Product Hunt.</div>
+    </div>
+    <div class="v-meta">
+      <div class="v-timeline">Month 12</div>
+      <div class="v-goal" style="border-color:rgba(245,158,11,0.3);color:#fbbf24">Goal: public launch,<br>community adoption</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Features in v1.0</div>
+    <div class="feature-grid">
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>Cost Intelligence — Basic <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Idle resource detection (CPU avg &lt;5% for 5 days), rightsizing suggestions, and cost anomaly alerts. Connects to AWS Cost Explorer, GCP Billing API, Azure Cost Management. No complex FinOps engine yet.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>Predictive Forecasting <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Facebook Prophet-based time-series forecasting. Predicts disk full, traffic surges, memory exhaustion. 14-day forecast horizon. "Your disk will be full in ~6 days at current growth rate."</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>Auto-Remediation — Opt-In <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Full autonomous actions available — but only when: confidence score &gt; 0.95, action is in an approved whitelist, and user has explicitly enabled it per-rule. Off by default forever.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>LSTM Anomaly Detection <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Optional upgrade from Isolation Forest to LSTM for sequential pattern detection. Catches memory leaks, gradual degradation, and cyclical failure patterns. Runs on dedicated sidecar only.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>Terraform Modules <span class="priority must">MUST</span></div>
+        <div class="feature-desc">One-click Terraform deployment for AWS, GCP, and Azure. Provisions EC2/GCE/VM, networking, IAM roles, and installs SentinelOps automatically. True infrastructure-as-code onboarding.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>Budget Forecasting <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Monthly cloud spend forecast with trend analysis. Alert when projected spend will exceed configured budget. Per-service cost breakdown visible in dashboard.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>Full Context Memory <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Expands memory beyond incidents to include service topology, deploy history, config changes, and team runbooks. The longer SentinelOps runs, the better its explanations become.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#f59e0b"></span>Community Plugin Registry <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Public registry of community-submitted plugins. Install any plugin with: `sentinelops plugin install pagerduty`. Versioned, reviewed, and tested before publishing.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Tech Added in v1.0</div>
+    <div class="tech-grid">
+      <div class="tech-row"><span class="tech-layer">Forecasting</span><span class="tech-name">Facebook Prophet</span></div>
+      <div class="tech-row"><span class="tech-layer">Deep learning</span><span class="tech-name">PyTorch (LSTM, optional)</span></div>
+      <div class="tech-row"><span class="tech-layer">Cost — AWS</span><span class="tech-name">boto3 Cost Explorer API</span></div>
+      <div class="tech-row"><span class="tech-layer">Cost — GCP</span><span class="tech-name">google-cloud-billing</span></div>
+      <div class="tech-row"><span class="tech-layer">Cost — Azure</span><span class="tech-name">azure-mgmt-costmanagement</span></div>
+      <div class="tech-row"><span class="tech-layer">IaC</span><span class="tech-name">Terraform (AWS/GCP/Azure)</span></div>
+      <div class="tech-row"><span class="tech-layer">Remediation safety</span><span class="tech-name">Confidence threshold engine</span></div>
+      <div class="tech-row"><span class="tech-layer">Plugin registry</span><span class="tech-name">Custom PyPI-style index</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Auto-Remediation Safety Model</div>
+    <div class="code-block"><span class="c-dim"># Auto-remediation only fires when ALL conditions are true:</span>
+
+<span class="c-white">conditions_met = (</span>
+    confidence_score  <span class="c-green">&gt;= 0.95</span>           <span class="c-dim"># ML must be very sure</span>
+    <span class="c-white">and</span> action           <span class="c-green">in whitelist</span>     <span class="c-dim"># only approved actions</span>
+    <span class="c-white">and</span> auto_remediation <span class="c-green">== True</span>         <span class="c-dim"># user explicitly opted in</span>
+    <span class="c-white">and</span> rule.auto        <span class="c-green">== True</span>         <span class="c-dim"># enabled per-rule, not globally</span>
+    <span class="c-white">and</span> not in_quiet_hours                <span class="c-dim"># not during maintenance window</span>
+<span class="c-white">)</span>
+
+<span class="c-dim"># Safe whitelist (v1.0 only):</span>
+<span class="c-green">whitelist = [</span>
+    <span class="c-yellow">"restart_pod"</span>,        <span class="c-dim"># low risk</span>
+    <span class="c-yellow">"restart_container"</span>,  <span class="c-dim"># low risk</span>
+    <span class="c-yellow">"scale_up"</span>,           <span class="c-dim"># low risk, can cost money</span>
+    <span class="c-yellow">"notify_slack"</span>,       <span class="c-dim"># no risk</span>
+<span class="c-green">]</span>
+
+<span class="c-dim"># NOT in whitelist (human approval always required):</span>
+<span class="c-red">blocked = ["apply_tf", "rollback_deploy", "block_ip", "scale_down"]</span></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Launch Plan</div>
+    <div class="why-box">
+      <p><strong style="color:#fbbf24">Hacker News</strong> — "Show HN: SentinelOps — open source AIOps agent, self-hosted, one command install." Target the front page. HN DevOps crowd is the exact target user.</p>
+      <p><strong style="color:#fbbf24">Reddit</strong> — r/devops, r/kubernetes, r/selfhosted. Write a genuine post about the problem you solved, not an ad. DevOps communities hate marketing speak.</p>
+      <p><strong style="color:#fbbf24">Dev.to / Hashnode article</strong> — "I built a self-healing infra tool because Datadog bills were destroying our startup." Personal story + technical depth = shares.</p>
+      <p><strong style="color:#fbbf24">Demo video</strong> — 90 seconds. Shows a real incident detected, AI explaining it in plain English, engineer approving a fix in one click. No slides. No voiceover. Just the product.</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════ v2.0 ═══════════════════════════════ -->
+<div class="version-panel" id="v20">
+
+  <div class="v-hero">
+    <div>
+      <div class="v-badge" style="background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.25)">v2.0 ENTERPRISE</div>
+      <div class="v-title">Chaos & FinOps</div>
+      <div class="v-subtitle">The final two pillars land only after the core platform is proven in production. Chaos engineering validates your monitoring works. Full FinOps replaces Kubecost.</div>
+    </div>
+    <div class="v-meta">
+      <div class="v-timeline">Month 18+</div>
+      <div class="v-goal" style="border-color:rgba(239,68,68,0.3);color:#f87171">Goal: enterprise-grade,<br>community-driven</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Features in v2.0</div>
+    <div class="feature-grid">
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>Chaos Engineering Integration <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Integrates with LitmusChaos and Chaos Mesh. Schedules controlled failure injections on staging. Verifies SentinelOps detects and responds correctly. Reports detection time and remediation success rate.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>Full FinOps Engine <span class="priority must">MUST</span></div>
+        <div class="feature-desc">Beyond idle detection — full cost allocation per service/team, reserved instance recommendations, spot instance opportunities, and multi-cloud cost comparison. Replaces Kubecost for K8s cost visibility.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>Chaos Experiment Library <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Pre-built chaos experiments: CPU stress, memory hog, pod kill, network delay, disk fill, node drain. Each verifies a specific SentinelOps detection + remediation path end-to-end.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>Multi-Tenant Support <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Single SentinelOps instance serving multiple teams or customers with full data isolation. RBAC with team-scoped dashboards, alerts, and incidents. Useful for MSPs and platform teams.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>SLA / SLO Tracking <span class="priority nice">NICE</span></div>
+        <div class="feature-desc">Define SLOs (99.9% uptime, &lt;200ms p99 latency). SentinelOps tracks error budgets in real time and alerts when burn rate will exhaust the budget before the window closes.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>Advanced LLM Agents <span class="priority opt">OPTIONAL</span></div>
+        <div class="feature-desc">Multi-step reasoning agents that can investigate an incident across multiple services, correlate logs + metrics + traces, and produce a comprehensive root cause report autonomously.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>Distributed Tracing <span class="priority opt">OPTIONAL</span></div>
+        <div class="feature-desc">OpenTelemetry integration for distributed tracing. Correlates traces with metric anomalies to pinpoint the exact service and line of code causing the slowdown.</div>
+      </div>
+
+      <div class="feature-card">
+        <div class="feature-name"><span class="dot" style="background:#ef4444"></span>Mobile App <span class="priority opt">OPTIONAL</span></div>
+        <div class="feature-desc">React Native app for incident acknowledgement, on-call management, and AI chat on mobile. Push notifications for critical alerts. One-tap approve/dismiss remediation suggestions.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">New Tech Added in v2.0</div>
+    <div class="tech-grid">
+      <div class="tech-row"><span class="tech-layer">Chaos — K8s</span><span class="tech-name">LitmusChaos</span></div>
+      <div class="tech-row"><span class="tech-layer">Chaos — Docker</span><span class="tech-name">Chaos Mesh</span></div>
+      <div class="tech-row"><span class="tech-layer">FinOps</span><span class="tech-name">Cloud Custodian</span></div>
+      <div class="tech-row"><span class="tech-layer">Tracing</span><span class="tech-name">OpenTelemetry SDK</span></div>
+      <div class="tech-row"><span class="tech-layer">Tracing backend</span><span class="tech-name">Jaeger / Tempo</span></div>
+      <div class="tech-row"><span class="tech-layer">SLO engine</span><span class="tech-name">OpenSLO spec</span></div>
+      <div class="tech-row"><span class="tech-layer">Multi-tenant</span><span class="tech-name">Keycloak (OIDC)</span></div>
+      <div class="tech-row"><span class="tech-layer">Mobile</span><span class="tech-name">React Native (optional)</span></div>
+      <div class="tech-row"><span class="tech-layer">LLM agents</span><span class="tech-name">LangGraph</span></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">Why chaos engineering is v2.0, not earlier</div>
+    <div class="why-box">
+      <p>Chaos engineering only makes sense when your detection and alerting are already solid. Running chaos experiments before v0.3 is ready would just generate noise — you wouldn't trust whether SentinelOps caught the failure or missed it.</p>
+      <p>By v2.0, you have 12+ months of real incidents, tuned ML models, and proven remediation flows. That's when chaos experiments become a meaningful confidence check, not just a demo feature.</p>
+      <p>The same logic applies to full FinOps — teams don't trust cost recommendations from a tool they've been using for a week. After a year of accurate anomaly detection, they trust the cost suggestions too.</p>
+    </div>
+  </div>
+
+</div>
+
+</main>
+
+<script>
+  const nav = document.getElementById('nav');
+  const btns = nav.querySelectorAll('.nav-btn');
+  const panels = document.querySelectorAll('.version-panel');
+
+  btns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.dataset.v;
+
+      btns.forEach(b => b.classList.remove('active'));
+      panels.forEach(p => p.classList.remove('active'));
+
+      btn.classList.add('active');
+      document.getElementById(target).classList.add('active');
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  });
+</script>
+
+</body>
+</html>

@@ -198,6 +198,10 @@ Verified on 2026-10-28: 37 agent tests + 14 server tests pass, UI type-checks an
 
 ## 8. Roadmap
 
+> Full product roadmap (v0.1 Core → v0.2 Intelligence → v0.3 AI Chat → v1.0 Full Platform → v2.0 Chaos & FinOps) with per-feature status: **`docs/ROADMAP.md`** (original: `docs/roadmap.html`). Note: against that roadmap the current code is **v0.1 Core complete + early v0.2**, although the code/UI label says "v0.2".
+
+Stage-level phases:
+
 - **A Stabilize** — ✅ done (v0.2)
 - **B Secure (DevSecOps)** — ✅ done (v0.2). Next: HTTPS via reverse proxy (Caddy/Traefik), roles (admin/viewer)
 - **C Intelligence** — ✅ layer 2 statistics (robust z-score). Next: Isolation Forest (scikit-learn) as a 3rd detector; optional LLM explanation (opt-in, human-in-the-loop)
