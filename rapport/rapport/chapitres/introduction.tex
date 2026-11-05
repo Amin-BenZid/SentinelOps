@@ -1,0 +1,40 @@
+\chapter*{Introduction générale}
+\addcontentsline{toc}{chapter}{Introduction générale}
+\markboth{Introduction générale}{Introduction générale}
+
+Les applications modernes reposent sur des serveurs, des conteneurs et des services qui
+doivent fonctionner en continu. Lorsqu'un processeur sature, qu'un conteneur manque de
+mémoire ou qu'un disque se remplit, l'équipe doit le savoir rapidement, comprendre la cause
+et agir avant que les utilisateurs ne soient touchés. C'est le rôle de la
+\textbf{supervision} (en anglais \emph{monitoring}) et de l'\textbf{alerte}.
+
+Les outils de référence existent : Prometheus collecte les métriques, Alertmanager envoie
+les alertes et Grafana les affiche. Ils sont puissants, mais ils forment trois produits
+distincts à installer, configurer et relier entre eux. Pour une petite équipe, une startup ou
+un projet étudiant, cette mise en place prend plusieurs jours. J'en ai fait l'expérience
+lors de mon projet de fin d'année : la partie supervision a été la plus longue et la plus
+fragile à configurer. De plus, ces outils déclenchent des alertes sur des seuils fixes, sans
+expliquer pourquoi une alerte s'est déclenchée ni regrouper les alertes liées.
+
+C'est dans ce contexte que s'inscrit mon stage au sein de \textbf{\entreprise}. Le projet,
+nommé \textbf{SentinelOps}, a pour objectif de concevoir et réaliser une plateforme de
+supervision et d'alerte \textbf{auto-hébergée}, déployable en \textbf{une seule commande},
+qui collecte les métriques des serveurs et des conteneurs, détecte les incidents par des
+règles et par une analyse statistique, explique chaque alerte avec des preuves mesurées et
+notifie les équipes de manière fiable, le tout avec un niveau de sécurité adapté à un
+environnement de production.
+
+Ce rapport est organisé en cinq chapitres :
+\begin{itemize}
+  \item le \textbf{chapitre 1} présente l'organisme d'accueil, le contexte du projet,
+        l'étude des solutions existantes et la méthodologie de travail ;
+  \item le \textbf{chapitre 2} spécifie les besoins fonctionnels et non fonctionnels, ainsi
+        que les acteurs et les cas d'utilisation ;
+  \item le \textbf{chapitre 3} décrit la conception : architecture, modèle de données,
+        automate d'états des alertes, détection d'anomalies et principales interactions ;
+  \item le \textbf{chapitre 4} présente la réalisation : environnement, choix
+        technologiques, implémentation des modules clés et interfaces ;
+  \item le \textbf{chapitre 5} traite de la sécurité, de la conteneurisation, de la chaîne
+        d'intégration continue, des tests, du déploiement et de l'évaluation.
+\end{itemize}
+Une conclusion générale dresse le bilan du travail et présente les perspectives.

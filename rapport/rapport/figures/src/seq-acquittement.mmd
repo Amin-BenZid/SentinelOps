@@ -1,0 +1,16 @@
+sequenceDiagram
+  autonumber
+  actor U as Opérateur
+  participant UI as Interface
+  participant API as API
+  participant DB as SQLite
+  participant AG as Agent
+  U->>UI: Acquitter
+  UI->>API: PATCH /api/alerts/42/status {acknowledged}
+  API->>DB: acked_by, acked_at (l'alerte reste FIRING)
+  API-->>UI: 200 + alerte mise à jour
+  U->>UI: Résoudre
+  UI->>API: PATCH /api/alerts/42/status {resolved}
+  API->>DB: transaction : state = resolved, resolved_by + outbox « resolved »
+  AG->>DB: cycle suivant : condition toujours vraie ?
+  AG->>AG: si oui → nouvelle période PENDING, nouvelle alerte après « for »

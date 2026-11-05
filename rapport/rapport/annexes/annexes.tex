@@ -1,0 +1,43 @@
+\chapter{Guide d'installation}
+\label{annexe:installation}
+
+SentinelOps s'installe de la même façon sur un PC, un VPS ou une instance cloud (AWS EC2,
+Azure, Google Cloud, OVHcloud, Hetzner, DigitalOcean\ldots). Seuls la création de la machine
+et le pare-feu dépendent du fournisseur.
+
+\section*{Prérequis}
+\begin{itemize}
+  \item Linux (Ubuntu 22.04 ou 24.04 conseillé), 2 vCPU et 2 Go de RAM au minimum, 10 Go de
+        disque ; sous Windows ou macOS : Docker Desktop ;
+  \item Docker Engine avec le module Compose v2, Git et Python 3.8 ou plus.
+\end{itemize}
+
+\section*{Étapes sur un serveur Linux}
+\begin{lstlisting}[language=bash,caption={Installation sur un serveur Linux},label={lst:install}]
+# 1. Docker (script officiel) + droits pour l'utilisateur courant
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER && newgrp docker
+
+# 2. Recuperer le projet
+git clone https://github.com/Amin-BenZid/SentinelOps.git
+cd SentinelOps
+
+# 3. Demarrer
+./sen run                 # acces par tunnel SSH (recommande)
+./sen run --public        # ou acces direct sur le port 4000
+\end{lstlisting}
+
+\section*{Accès au dashboard}
+\begin{itemize}
+  \item \textbf{Tunnel SSH} : depuis le poste de l'opérateur,
+        \code{ssh -L 4000:localhost:4000 utilisateur@IP_DU_SERVEUR}, puis ouvrir
+        \url{http://localhost:4000}.
+  \item \textbf{Port public} : autoriser le port TCP 4000 dans le pare-feu du fournisseur
+        (groupe de sécurité AWS, NSG Azure, règle VPC Google Cloud, pare-feu du VPS)
+        \textbf{uniquement depuis l'adresse IP de l'opérateur}, puis ouvrir
+        \code{http://IP_DU_SERVEUR:4000}.
+\end{itemize}
+
+Le mot de passe initial s'affiche à la fin de \code{sen run} (ou avec \code{sen password}) ; il
+doit être changé à la première connexion.
+

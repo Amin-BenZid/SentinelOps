@@ -1,0 +1,25 @@
+sequenceDiagram
+  autonumber
+  participant L as Boucle de l'agent
+  participant C as Collecteurs
+  participant D as Détecteurs
+  participant AM as AlertManager
+  participant DB as SQLite
+  loop toutes les 5 secondes
+    L->>DB: lire les règles actives
+    L->>C: collect() en parallèle (hôte, Docker, Prometheus)
+    C-->>L: échantillons
+    L->>D: detect(échantillons)
+    D-->>L: Signals (+ échantillons annotés)
+    L->>DB: insérer les métriques
+    L->>AM: process(signals, maintenant)
+    alt alerte déjà ouverte
+      AM->>DB: mettre à jour last_seen, hit_count, preuves
+    else condition nouvelle
+      AM->>AM: PENDING (en mémoire)
+    else durée « for » atteinte
+      AM->>DB: BEGIN · INSERT alerte FIRING + outbox « firing » · COMMIT
+    end
+    AM->>DB: BEGIN · RESOLVED + outbox « resolved » · COMMIT (conditions disparues)
+    L->>DB: battement de cœur (app_meta)
+  end

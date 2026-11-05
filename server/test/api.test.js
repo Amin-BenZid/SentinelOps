@@ -50,7 +50,14 @@ before(async () => {
   base = `http://127.0.0.1:${server.address().port}/api`;
 });
 
-after(() => { server.close(); fs.rmSync(tmp, { recursive: true, force: true }); });
+after(async () => {
+  server.closeAllConnections?.();
+  await new Promise((r) => server.close(r));
+  // Windows cannot delete a SQLite file that is still open: close the DB first,
+  // and never fail the suite just because the temp folder could not be removed.
+  try { db.close(); } catch { /* already closed */ }
+  try { fs.rmSync(tmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch { /* temp dir, OS cleans it */ }
+});
 
 test('health is public and reports agent status', async () => {
   const r = await call('GET', '/health', { auth: null });

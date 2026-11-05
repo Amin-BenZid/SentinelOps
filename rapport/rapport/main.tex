@@ -1,0 +1,66 @@
+% =====================================================================
+%  Rapport de stage — SentinelOps
+%  Compilation : pdfLaTeX (Overleaf par défaut) ou XeLaTeX
+%      latexmk -pdf main.tex        (ou : pdflatex, bibtex, pdflatex x2)
+% =====================================================================
+\documentclass[11pt,a4paper,oneside]{report}
+
+% ---------------------------------------------------------------------
+%  1. INFORMATIONS À REMPLIR (elles apparaissent partout dans le rapport)
+% ---------------------------------------------------------------------
+\newcommand{\etudiant}{Mohamed Amine Benzid}
+\newcommand{\typeRapport}{Rapport de stage}
+\newcommand{\titreProjet}{SentinelOps : plateforme auto-hébergée de supervision et d'alerte intelligente pour infrastructures conteneurisées}
+\newcommand{\titreCourt}{SentinelOps}
+\newcommand{\entreprise}{Barmaj Information Technology}
+\newcommand{\encadrantPro}{M. Yousef Abed Elberi}
+\newcommand{\encadrantAca}{\afaire{Nom de l'encadrant académique}}
+\newcommand{\ecole}{EPI Sousse}
+\newcommand{\ecoleComplet}{\afaire{Nom complet de l'école}}
+\newcommand{\universite}{\afaire{Université de rattachement}}
+\newcommand{\diplome}{Cycle ingénieur --- Ingénierie Cloud}
+\newcommand{\anneeUniv}{2026 -- 2027}
+\newcommand{\periodeStage}{\afaire{du JJ/MM/AAAA au JJ/MM/AAAA}}
+\newcommand{\ville}{Sousse}
+
+% Mettre à false pour masquer les cadres rouges « à compléter »
+\newif\ifbrouillon
+\brouillontrue
+
+% ---------------------------------------------------------------------
+\input{config/preambule}
+
+\begin{document}
+
+\input{config/page-de-garde}
+
+\pagenumbering{roman}
+\input{chapitres/00-dedicace}
+\input{chapitres/00-remerciements}
+\input{chapitres/00-resume}
+
+\addtocontents{toc}{\protect\enlargethispage*{4\baselineskip}}
+{\setstretch{0.92}\tableofcontents
+\listoffigures}
+\input{chapitres/00-abreviations}
+
+\cleardoublepage
+\pagenumbering{arabic}
+\input{chapitres/introduction}
+\input{chapitres/chapitre1-contexte}
+\input{chapitres/chapitre2-besoins}
+\input{chapitres/chapitre3-conception}
+\input{chapitres/chapitre4-realisation}
+\input{chapitres/chapitre5-devsecops}
+\input{chapitres/conclusion}
+
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{Bibliographie et webographie}
+{\small\bibliographystyle{unsrt}
+\bibliography{bibliographie}}
+
+\appendix
+\input{annexes/annexes}
+
+\end{document}

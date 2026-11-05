@@ -1,0 +1,45 @@
+\chapter*{Conclusion générale et perspectives}
+\addcontentsline{toc}{chapter}{Conclusion générale et perspectives}
+\markboth{Conclusion générale}{Conclusion générale}
+
+Ce stage, réalisé au sein de \textbf{\entreprise}, avait pour objectif de concevoir et réaliser
+une plateforme de supervision et d'alerte auto-hébergée, simple à installer et fiable. Le point
+de départ était un constat vécu : mettre en place Prometheus, Alertmanager et Grafana demande
+de configurer et de synchroniser plusieurs outils, ce qui est long et fragile pour une petite
+équipe.
+
+\textbf{SentinelOps} répond à ce besoin. Une seule commande, \code{sen run}, construit et démarre
+l'ensemble et affiche \og Ready \fg{} lorsque tout fonctionne. L'outil collecte les métriques de
+l'hôte, des conteneurs et de cibles Prometheus, détecte les incidents par des règles avec durée
+et par un score z robuste, regroupe les alertes liées en incidents, explique chaque alerte par
+des preuves mesurées et un instantané des processus, et notifie les équipes sur Slack ou par
+courriel sans jamais perdre une notification.
+
+Au-delà des fonctionnalités, le travail a surtout porté sur la qualité. Une revue du prototype
+initial a relevé seize problèmes, de la base de données définie à trois endroits à une API
+entièrement ouverte. La version 0.2 les corrige par des choix d'architecture : schéma unique par
+migrations, automate d'états, outbox transactionnelle, API fermée par défaut, accès à Docker au
+moindre privilège et conteneurs durcis. Cinquante et un tests automatisés et une chaîne
+d'intégration continue avec analyse de vulnérabilités vérifient chaque modification.
+
+Sur le plan personnel, ce stage m'a permis de \afaire{compléter : compétences acquises,
+par exemple la conception d'un système concurrent autour d'une base partagée, les pratiques
+DevSecOps, la rigueur des tests, le travail en autonomie avec un encadrant}.
+
+\section*{Perspectives}
+
+Plusieurs évolutions sont prévues dans la feuille de route du projet :
+\begin{itemize}
+  \item \textbf{détection par apprentissage automatique} : ajouter un détecteur Isolation
+        Forest multivarié, sans modifier le gestionnaire d'alertes grâce à l'interface
+        \code{Detector} ;
+  \item \textbf{indicateurs de fiabilité} : calculer le MTTD et le MTTR à partir des dates déjà
+        enregistrées pour chaque alerte ;
+  \item \textbf{supervision de plusieurs hôtes} : des agents distants qui envoient leurs
+        métriques au dashboard ;
+  \item \textbf{PostgreSQL} en option pour les volumes plus importants ;
+  \item \textbf{déploiement automatisé} avec Terraform et un chart Helm pour Kubernetes ;
+  \item \textbf{assistant d'analyse} : un modèle de langage exécuté localement (par exemple via
+        Ollama) pour résumer un incident et proposer des pistes de résolution ;
+  \item \textbf{HTTPS intégré et rôles} (lecture seule, opérateur, administrateur).
+\end{itemize}

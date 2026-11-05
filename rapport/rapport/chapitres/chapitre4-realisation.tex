@@ -1,0 +1,213 @@
+\chapter{Réalisation}
+\label{chap:realisation}
+
+\begin{introchapitre}
+Ce chapitre présente la mise en œuvre de SentinelOps : l'environnement de travail, les choix
+technologiques, les extraits de code les plus importants, le lanceur en une commande et les
+interfaces de l'application.
+\end{introchapitre}
+
+\section{Environnement de travail}
+
+Le développement a été réalisé sur un poste \afaire{marque, processeur, mémoire} sous Windows avec Docker Desktop (WSL~2), et les tests de déploiement sur une instance cloud Linux (Ubuntu) \afaire{fournisseur et taille de l'instance}. Le tableau~\ref{tab:logiciel} résume l'environnement logiciel.
+
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.6cm}L{2.4cm}Y}
+\toprule
+\textbf{Outil} & \textbf{Version} & \textbf{Utilisation} \\
+\midrule
+Python & 3.11 & agent de supervision (asyncio, psutil, docker, PyYAML) \\
+Node.js & 24 & serveur du dashboard (Express, ws, better-sqlite3) \\
+React, TypeScript & 18, 5 & interface utilisateur (Vite, Recharts) \\
+SQLite & 3 (mode WAL) & stockage partagé \\
+Docker, Docker Compose & 27+, v2 & conteneurisation et orchestration locale \\
+docker-socket-proxy & 0.5.0 & accès restreint à l'API Docker \\
+pytest, node:test & --- & tests automatisés \\
+GitHub Actions & --- & intégration continue \\
+Trivy & --- & analyse de vulnérabilités des images \\
+Visual Studio Code, Git & --- & édition du code et gestion de versions \\
+\bottomrule
+\end{tabularx}
+\caption{Environnement logiciel}
+\label{tab:logiciel}
+\end{table}
+
+\section{Choix technologiques}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3cm}L{3.4cm}Y}
+\toprule
+\textbf{Besoin} & \textbf{Choix} & \textbf{Justification} \\
+\midrule
+Agent de collecte & Python + asyncio & bibliothèques mûres pour le système (\code{psutil}) et Docker ; une boucle asynchrone suffit pour une cadence de 5 s \\
+Serveur web & Node.js + Express & un seul langage avec l'interface ; WebSocket natif via \code{ws} \\
+Interface & React + TypeScript & composants réutilisables, typage des données de l'API \\
+Stockage & SQLite (WAL) & aucun serveur à installer, un fichier sur un volume, lectures concurrentes \\
+Déploiement & Docker Compose & une seule commande, identique sur un PC et sur un serveur \\
+Graphiques & Recharts & courbes temps réel avec bande attendue \\
+\bottomrule
+\end{tabularx}
+\caption{Choix technologiques}
+\label{tab:choix}
+\end{table}
+
+\begin{aretenir}[Pourquoi pas PostgreSQL ou Kafka ?]
+SentinelOps vise un seul hôte et une installation en une commande. Un serveur de base de
+données ou un bus de messages aurait ajouté des conteneurs à configurer, ce que le projet
+cherche justement à éviter. Le passage à PostgreSQL reste possible grâce aux migrations SQL
+standard (voir les perspectives).
+\end{aretenir}
+
+\section{Extraits de code significatifs}
+
+Le dépôt est organisé en quatre parties : \code{agent/} (Python), \code{server/} et \code{ui/} (Node.js et React), \code{shared/migrations/} (schéma SQL commun), plus le lanceur \code{scripts/sen.py}, le fichier \code{docker-compose.yml} et le pipeline \code{.github/workflows/}.
+
+\subsection{Cycle de vie des alertes}
+
+L'extrait~\ref{lst:alertmanager} montre le c\oe ur de l'automate : une condition reste en
+attente tant que sa durée \code{for} n'est pas atteinte, puis l'alerte est ouverte. L'index
+unique protège contre une ouverture concurrente.
+
+\begin{lstlisting}[language=Python,caption={Passage de PENDING à FIRING (\texttt{alert\_manager.py})},label={lst:alertmanager}]
+p = self.pending.get(key)
+if p is None:
+    p = self.pending[key] = Pending(since_ms=now_ms, hits=0)
+p.hits += 1
+
+if now_ms - p.since_ms < sig.for_seconds * 1000:
+    stats["pending"] += 1
+    continue                      # not long enough yet: nothing written
+
+# PENDING -> FIRING (alert + outbox row in one transaction)
+try:
+    alert["id"] = await self.db.open_alert(alert)
+except sqlite3.IntegrityError:
+    continue                      # unique index: already open elsewhere
+del self.pending[key]
+\end{lstlisting}
+
+\subsection{Score z robuste}
+
+\begin{lstlisting}[language=Python,caption={Calcul du score z robuste (\texttt{anomaly\_detector.py})},label={lst:zscore}]
+mean = statistics.median(samples)                          # robust centre
+stdev = 1.4826 * statistics.median(abs(x - mean) for x in samples)
+effective = max(stdev, self.min_noise_floor)               # floor = 2
+z = (value - mean) / effective
+is_outlier = (abs(z) > self.k_threshold                    # k = 3
+              and abs(value - mean) >= self.min_abs_delta) # >= 8 units
+\end{lstlisting}
+
+\subsection{API fermée par défaut}
+
+\begin{lstlisting}[language=JavaScript,caption={Intergiciel d'authentification (\texttt{middleware/auth.js})},label={lst:auth}]
+const PUBLIC = new Set(['POST /auth/login', 'GET /health']);
+
+export function requireAuth(req, res, next) {
+  const key = `${req.method} ${req.path}`;
+  if (PUBLIC.has(key)) return next();
+
+  const user = authService.validateToken(bearerToken(req));
+  if (!user) return res.status(401).json({ error: 'Authentication required' });
+
+  if (user.must_change_password && !ONBOARDING.has(key))
+    return res.status(403).json({ code: 'PASSWORD_CHANGE_REQUIRED' });
+  req.user = user;
+  next();
+}
+\end{lstlisting}
+
+Une nouvelle route est donc protégée sans qu'on ait à y penser : il faudrait l'ajouter
+explicitement à la liste \code{PUBLIC} pour la rendre accessible sans session.
+
+La migration du schéma (verrou \code{BEGIN IMMEDIATE}) et le travailleur d'outbox (nouvel essai à 15, 30, 60 puis 120 s) suivent la conception du chapitre~\ref{chap:conception}.
+
+\section{Lanceur en une commande}
+
+Le lanceur \code{sen} (script Python sans dépendance, avec des raccourcis \code{sen} et
+\code{sen.cmd}) masque Docker Compose. La commande \code{sen run} vérifie Docker, génère un mot
+de passe administrateur au premier lancement, construit et démarre les conteneurs, puis attend
+que \code{/api/health} réponde \textbf{et} que l'agent ait envoyé son premier signal de vie avant
+d'afficher \og Ready \fg{} avec l'adresse et les identifiants (figure~\ref{fig:sen-run}).
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{4.4cm}Y}
+\toprule
+\textbf{Commande} & \textbf{Effet} \\
+\midrule
+\code{sen run} & construit, démarre et attend que tout soit prêt \\
+\code{sen run --public --port 8080} & expose le dashboard sur le réseau, sur un autre port \\
+\code{sen status} & état des conteneurs, de l'API et de l'agent \\
+\code{sen logs [agent|dashboard]} & journaux en continu \\
+\code{sen password} & affiche le mot de passe administrateur initial \\
+\code{sen update}, \code{sen restart}, \code{sen stop} & mise à jour, redémarrage, arrêt \\
+\bottomrule
+\end{tabularx}
+\caption{Commandes du lanceur \texttt{sen}}
+\label{tab:sen}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\souscapture[0.55\linewidth]{cap-18-sen-run.png}{\texttt{sen run} jusqu'à \og Ready \fg{}}\hfill
+\souscapture[0.42\linewidth]{cap-19-sen-status.png}{\texttt{sen status}}
+\caption{Le lanceur en action}
+\label{fig:sen-run}
+\end{figure}
+
+\section{Interfaces de l'application}
+
+Au premier lancement, l'administrateur se connecte avec le mot de passe généré puis doit en
+choisir un nouveau ; tant que ce n'est pas fait, l'API refuse toute autre action. La vue
+d'ensemble affiche ensuite l'état de l'hôte et de chaque conteneur, les incidents ouverts et
+des courbes mises à jour en temps réel par WebSocket (figure~\ref{fig:ui-principal}).
+
+\begin{figure}[htbp]
+\centering
+\souscapture[0.7\linewidth]{cap-02-login.png}{Connexion}\\[0.6em]
+\souscapture{cap-04-vue-ensemble-normal.png}{Vue d'ensemble, état normal}\hfill
+\souscapture{cap-05-vue-ensemble-incident.png}{Vue d'ensemble pendant un incident}
+\caption{Authentification et vue d'ensemble}
+\label{fig:ui-principal}
+\end{figure}
+
+Un clic sur un incident ouvre un panneau qui répond aux questions de l'opérateur : pourquoi
+l'alerte s'est déclenchée (preuves mesurées), ce qui s'est passé, quels processus consommaient
+les ressources, et un brouillon de compte rendu (\emph{post-mortem}). Les courbes affichent la
+bande attendue calculée par le détecteur d'anomalies (figure~\ref{fig:ui-incident}).
+
+\begin{figure}[htbp]
+\centering
+\souscapture{cap-06-detail-pourquoi.png}{Onglet \og Pourquoi \fg{}}\hfill
+\souscapture{cap-08-detail-processus.png}{Instantané des processus}\\[0.6em]
+\souscapture[0.7\linewidth]{cap-10-courbe-anomalie.png}{Courbe avec bande attendue et point anormal}
+\caption{Analyse d'un incident}
+\label{fig:ui-incident}
+\end{figure}
+
+Les règles, les canaux de notification et les heures calmes se gèrent depuis l'interface, ainsi
+que les journaux et le redémarrage des conteneurs. L'interface existe aussi en thème clair et
+s'adapte aux écrans de téléphone. Les notifications Slack signalent le déclenchement puis la
+résolution (figure~\ref{fig:ui-gestion}).
+
+\begin{figure}[htbp]
+\centering
+\souscapture{cap-11-regles.png}{Règles d'alerte}\hfill
+\souscapture{cap-12-parametres.png}{Paramètres}\\[0.6em]
+\souscapture{cap-13-journaux-conteneur.png}{Journaux d'un conteneur}\hfill
+\souscapture{cap-16-slack-declenchement.png}{Notification Slack}
+\caption{Gestion et notifications}
+\label{fig:ui-gestion}
+\end{figure}
+
+\begin{conclusionchapitre}
+Les fonctionnalités prévues au chapitre~\ref{chap:besoins} sont réalisées et accessibles par
+une seule commande. Le chapitre suivant décrit comment elles sont sécurisées, testées et
+déployées.
+\end{conclusionchapitre}

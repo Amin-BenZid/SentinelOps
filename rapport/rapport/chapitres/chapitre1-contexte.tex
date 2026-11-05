@@ -1,0 +1,201 @@
+\chapter{Contexte général du projet}
+\label{chap:contexte}
+
+\begin{introchapitre}
+Ce chapitre situe le projet. Il présente d'abord l'organisme d'accueil, puis le cadre et la
+problématique du stage. Il propose ensuite une étude des solutions de supervision existantes,
+dont les limites motivent la solution proposée, et se termine par la méthodologie de travail
+et le planning suivis.
+\end{introchapitre}
+
+\section{Présentation de l'organisme d'accueil}
+
+\subsection{\entreprise}
+
+Ce stage s'est déroulé au sein de \textbf{\entreprise}, \afaire{présentation de l'entreprise :
+date de création, siège, secteur d'activité, taille de l'équipe, principaux clients ou
+produits (3 à 5 lignes)}.
+
+\subsection{Activités et services}
+
+\afaire{Décrire les principaux domaines d'activité de l'entreprise, par exemple :
+développement de solutions logicielles, services cloud, intégration, conseil. Une liste à
+puces de 3 à 6 éléments suffit.}
+
+\subsection{Organisation}
+
+\afaire{Présenter la structure de l'entreprise et situer l'équipe ou le département dans
+lequel le stage a été effectué, sous la responsabilité de \encadrantPro.}
+
+\capture[0.8\linewidth]{cap-01-organigramme.png}{Organigramme de \entreprise}{fig:organigramme}
+
+\section{Cadre du projet}
+
+Ce travail a été réalisé dans le cadre du stage du \diplome\ à \ecole, au sein de
+\entreprise, \periodeStage. Il porte sur la conception et la réalisation complète d'un produit
+logiciel, de l'étude des besoins jusqu'au déploiement, en suivant les pratiques DevOps et
+DevSecOps : conteneurisation, intégration continue, tests automatisés et sécurité intégrée
+dès la conception.
+
+\section{Problématique}
+
+Superviser une infrastructure consiste à répondre en permanence à trois questions :
+\emph{quelque chose ne va-t-il pas ?}, \emph{pourquoi ?} et \emph{qui doit agir ?}
+Les équipes réduites (startups, petites entreprises, projets étudiants) rencontrent trois
+difficultés :
+
+\begin{enumerate}
+  \item \textbf{La complexité de mise en place.} La pile de référence associe Prometheus
+        (collecte), Alertmanager (routage des alertes) et Grafana (visualisation). Chaque outil
+        a sa configuration, son format et son cycle de mise à jour ; les relier demande du
+        temps et des compétences que ces équipes n'ont pas toujours.
+  \item \textbf{Le bruit des alertes.} Des alertes fondées uniquement sur des seuils fixes se
+        déclenchent sur des pics passagers, se répètent pour un même problème et ne sont pas
+        regroupées, ce qui provoque une \og fatigue d'alerte \fg{} : les vraies alertes finissent
+        par être ignorées \cite{googlesre}.
+  \item \textbf{Le manque d'explication.} Une alerte indique qu'un seuil est dépassé, mais
+        pas quel processus en est la cause, ni depuis quand la situation dure.
+\end{enumerate}
+
+\begin{aretenir}[Problématique]
+Comment offrir à une petite équipe une supervision \textbf{installable en une commande}, qui
+produit \textbf{peu d'alertes mais des alertes fiables et expliquées}, tout en restant
+\textbf{sécurisée} et \textbf{maintenable} comme un produit professionnel ?
+\end{aretenir}
+
+\section{Étude de l'existant}
+
+\subsection{Notions de base}
+
+\begin{itemize}
+  \item \textbf{Métrique} : valeur numérique mesurée à intervalle régulier (utilisation CPU,
+        mémoire, nombre de requêtes). C'est la matière première de la supervision.
+  \item \textbf{Règle d'alerte} : condition sur une métrique, par exemple
+        \texttt{cpu > 85~\%} pendant 60 secondes.
+  \item \textbf{Incident} : ensemble d'alertes liées à une même cause.
+  \item \textbf{Observabilité} : capacité à comprendre l'état interne d'un système à partir
+        de ses métriques, de ses journaux et de ses traces. La supervision en est le premier
+        niveau.
+\end{itemize}
+
+\subsection{Solutions existantes}
+
+\paragraph{Prometheus, Alertmanager et Grafana.}
+Prometheus collecte des séries temporelles en interrogeant des \emph{exportateurs} et évalue
+des règles d'alerte écrites en PromQL, avec une clause \code{for} qui impose une durée avant
+le déclenchement \cite{prometheus-rules}. Alertmanager déduplique, regroupe et route les
+alertes vers les canaux de notification \cite{alertmanager}. Grafana assure la
+visualisation \cite{grafana}. Cette pile est un standard de l'industrie, mais elle se compose
+de trois produits à configurer séparément et ne propose pas de détection d'anomalies
+statistique native.
+
+\paragraph{Zabbix.}
+Solution de supervision complète et ancienne, avec agent, serveur, base de données et
+interface web \cite{zabbix}. Très riche fonctionnellement, elle demande cependant une base de
+données externe et une configuration conséquente.
+
+\paragraph{Netdata.}
+Agent de supervision temps réel très léger, avec des tableaux de bord prêts à l'emploi et une
+détection d'anomalies intégrée \cite{netdata}. Il est orienté vers la visualisation fine d'un
+serveur plutôt que vers la gestion du cycle de vie des alertes et des incidents.
+
+\paragraph{Datadog.}
+Plateforme d'observabilité en mode SaaS, très complète (métriques, journaux, traces,
+détection d'anomalies) \cite{datadog}. Les données quittent l'infrastructure de l'entreprise
+et la facturation dépend du nombre d'hôtes, ce qui peut être coûteux pour une petite équipe.
+
+\subsection{Synthèse comparative}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.3cm}YYYYY}
+\toprule
+\textbf{Critère} & \textbf{Prometheus + Grafana} & \textbf{Zabbix} & \textbf{Netdata} & \textbf{Datadog} & \textbf{SentinelOps} \\
+\midrule
+Auto-hébergé & oui & oui & oui & non (SaaS) & oui \\
+Installation & 3 outils à relier & serveur + base externe & simple & agent + compte & une commande \\
+Règles avec durée & oui (\code{for}) & oui & oui & oui & oui \\
+Détection d'anomalies & non native & fonctions de tendance & oui & oui & oui (score z robuste) \\
+Alerte expliquée (preuves, processus) & non & partiel & partiel & oui & oui \\
+Regroupement en incidents & via Alertmanager & oui & limité & oui & oui \\
+Coût & gratuit & gratuit & gratuit / payant & par hôte & gratuit \\
+\bottomrule
+\end{tabularx}
+\caption{Comparaison des solutions de supervision étudiées}
+\label{tab:comparatif}
+\end{table}
+
+\subsection{Critique de l'existant}
+
+Les solutions open source sont puissantes mais demandent un effort d'intégration important,
+tandis que la solution SaaS la plus complète a un coût récurrent et externalise les données.
+Aucune ne réunit à la fois une installation en une commande, une gestion complète du cycle de
+vie des alertes, des alertes expliquées et une sécurité par défaut pour une petite équipe.
+
+\section{Solution proposée}
+
+SentinelOps est une plateforme auto-hébergée qui se lance avec la commande \code{sen run} et
+qui :
+\begin{itemize}
+  \item \textbf{collecte} toutes les cinq secondes les métriques de l'hôte, des conteneurs
+        Docker et de tout exportateur Prometheus ;
+  \item \textbf{détecte} les incidents par des règles de seuil et par un détecteur
+        statistique d'anomalies ;
+  \item \textbf{décide} grâce à un automate d'états qui filtre les pics passagers, évite les
+        doublons et regroupe les alertes en incidents ;
+  \item \textbf{explique} chaque alerte avec les valeurs mesurées et les processus les plus
+        consommateurs au moment du déclenchement ;
+  \item \textbf{notifie} par Slack et e-mail avec garantie de livraison ;
+  \item \textbf{affiche} l'ensemble en temps réel dans une interface web.
+\end{itemize}
+
+SentinelOps ne rejette pas l'écosystème existant : tout exportateur Prometheus peut être
+interrogé, ce qui permet de superviser des applications tierces sans développement
+supplémentaire.
+
+\section{Méthodologie de travail}
+
+Le projet a suivi une \textbf{approche itérative et incrémentale}, guidée par une feuille de
+route versionnée. Chaque version livre un produit utilisable, puis est revue avant d'ajouter
+de nouvelles fonctionnalités. Chaque itération suit le même cycle : analyse, conception,
+réalisation, tests et revue.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.4cm}Y}
+\toprule
+\textbf{Version} & \textbf{Contenu} \\
+\midrule
+v0.1 --- Core & collecte, règles, déduplication, corrélation, tableau de bord, Slack/e-mail, déploiement Docker Compose \\
+v0.2 --- Intelligence & couche de détection extensible, détection d'anomalies, gestion d'incidents, durcissement \\
+v0.3 --- Assistant IA & explication par un modèle de langage local (optionnel), suivi des changements \\
+v1.0 --- Plateforme & prévisions, coûts cloud, modules Terraform, remédiation sous validation humaine \\
+\bottomrule
+\end{tabularx}
+\caption{Feuille de route versionnée du produit}
+\label{tab:roadmap}
+\end{table}
+
+Le stage couvre la version 0.1 complète et le début de la version 0.2. Une étape importante
+a été une \textbf{revue de code} complète de la première version, qui a identifié seize
+problèmes (fonctionnels, de sécurité et de qualité) ; leur correction a conduit à la refonte
+décrite dans les chapitres 3 à 5.
+
+\section{Planning}
+
+La figure~\ref{fig:gantt} présente le déroulement prévisionnel du stage.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{!}{0.4\textheight}{\input{figures/tikz/gantt.tex}}
+\caption{Diagramme de Gantt du stage \afaire{à ajuster aux dates réelles}}
+\label{fig:gantt}
+\end{figure}
+
+\begin{conclusionchapitre}
+Ce chapitre a présenté le contexte du stage et montré, à travers l'étude de l'existant, le
+besoin d'une solution de supervision simple à déployer, aux alertes fiables et expliquées.
+Le chapitre suivant formalise ces besoins.
+\end{conclusionchapitre}

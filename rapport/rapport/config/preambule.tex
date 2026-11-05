@@ -1,0 +1,165 @@
+% =====================================================================
+%  Préambule : langue, mise en page, styles. Rien à modifier ici
+%  pour un usage normal.
+% =====================================================================
+
+% ---- Moteur : pdfLaTeX ou XeLaTeX/LuaLaTeX --------------------------
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{lmodern}
+  \usepackage[english,french]{babel}
+\else
+  \usepackage{fontspec}
+  \usepackage{polyglossia}
+  \setmainlanguage{french}
+  \setotherlanguage{english}
+  \providecommand{\og}{\guillemotleft}
+  \providecommand{\fg}{\unskip\guillemotright}
+\fi
+\usepackage{textcomp}
+
+% ---- Mise en page (A4, prête à imprimer et relier) ------------------
+\usepackage[a4paper,top=2.2cm,bottom=2.2cm,left=2.5cm,right=2.2cm,headheight=15pt]{geometry}
+\usepackage{setspace}
+\setstretch{1.15}
+\setlength{\parskip}{0.3em}
+\usepackage{microtype}
+\usepackage{emptypage}
+
+% ---- Couleurs, figures, tableaux -------------------------------------
+\usepackage[table]{xcolor}
+\definecolor{bleuSentinel}{HTML}{1F4E79}
+\definecolor{grisClair}{HTML}{F2F4F7}
+\definecolor{grisTexte}{HTML}{5A6270}
+\definecolor{rougeAfaire}{HTML}{C62828}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage{subcaption}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{makecell}
+\renewcommand{\arraystretch}{1.25}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\usepackage{enumitem}
+\setlist{itemsep=0.15em, topsep=0.3em}
+\usepackage{amsmath,amssymb}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,fit,backgrounds,calc}
+\usepackage{pgfgantt}
+\usepackage[most]{tcolorbox}
+\usepackage{eso-pic}
+\usepackage{lastpage}
+
+% ---- Code source ----------------------------------------------------
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{grisClair},
+  frame=single, rulecolor=\color{grisClair!70!black},
+  numbers=left, numberstyle=\tiny\color{grisTexte}, numbersep=6pt,
+  breaklines=true, breakatwhitespace=true, columns=fullflexible,
+  keywordstyle=\color{bleuSentinel}\bfseries,
+  commentstyle=\color{grisTexte}\itshape,
+  stringstyle=\color{teal!70!black},
+  showstringspaces=false, tabsize=2, xleftmargin=1.2em, framexleftmargin=1em,
+  captionpos=b, aboveskip=0.8em, belowskip=0.8em
+}
+\renewcommand{\lstlistingname}{Extrait}
+\renewcommand{\lstlistlistingname}{Liste des extraits de code}
+\lstdefinelanguage{yaml}{morekeywords={true,false}, sensitive=false, morecomment=[l]{\#}, morestring=[b]"}
+\lstdefinelanguage{JavaScript}{morekeywords={const,let,var,function,return,if,else,for,await,async,new,export,import,from,throw,try,catch},
+  sensitive=true, morecomment=[l]{//}, morecomment=[s]{/*}{*/}, morestring=[b]', morestring=[b]"}
+
+% ---- En-têtes et pieds de page ----------------------------------------
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{grisTexte}\nouppercase{\leftmark}}
+\fancyhead[R]{\small\color{grisTexte}\titreCourt}
+\fancyfoot[C]{\small\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[C]{\small\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+% ---- Titres de chapitres --------------------------------------------
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\bfseries\color{bleuSentinel}}
+  {\filleft\Large\MakeUppercase{\chaptertitlename}~\thechapter}
+  {1ex}
+  {\titlerule[1.2pt]\vspace{1.2ex}\filright\huge}
+  [\vspace{0.5ex}\titlerule]
+\titleformat{name=\chapter,numberless}[display]
+  {\normalfont\bfseries\color{bleuSentinel}}{}{0pt}
+  {\titlerule[1.2pt]\vspace{1.2ex}\filright\huge}[\vspace{0.5ex}\titlerule]
+\titlespacing*{\section}{0pt}{1.2ex plus .5ex}{0.6ex}
+\titlespacing*{\subsection}{0pt}{1ex plus .4ex}{0.4ex}
+\titlespacing*{\chapter}{0pt}{-35pt}{14pt}
+\titleformat{\section}{\normalfont\Large\bfseries\color{bleuSentinel}}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\itshape}{\thesubsubsection}{0.8em}{}
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{1}
+
+% ---- Liens (gris/noir : impression propre) ----------------------------
+\usepackage{xurl}
+\usepackage[hidelinks,pdfusetitle]{hyperref}
+\hypersetup{pdftitle={\titreProjet}, pdfauthor={\etudiant}}
+
+% ---- Abréviations ---------------------------------------------------
+\usepackage[nohyperlinks]{acronym}
+
+% ---- Macros du rapport ----------------------------------------------
+% Texte à compléter : en rouge entre crochets en mode brouillon (\brouillonfalse pour l'enlever)
+\newcommand{\afaire}[1]{\ifbrouillon{\color{rougeAfaire}\bfseries[\,#1\,]}\else #1\fi}
+
+% Capture d'écran : insère l'image si elle existe, sinon un cadre
+% indiquant le nom exact du fichier à déposer dans figures/captures/
+%   \capture[largeur]{fichier.png}{légende}{label}
+\newcommand{\capture}[4][0.95\linewidth]{%
+  \begin{figure}[htbp]
+    \centering
+    \IfFileExists{figures/captures/#2}{%
+      \fcolorbox{grisClair!60!black}{white}{\includegraphics[width=#1,height=0.3\textheight,keepaspectratio]{figures/captures/#2}}%
+    }{%
+      \fcolorbox{rougeAfaire}{rougeAfaire!5}{%
+        \begin{minipage}[c][0.45\linewidth][c]{#1}\centering
+          \textcolor{rougeAfaire}{\textbf{Capture à insérer}}\\[0.6em]
+          \texttt{figures/captures/\detokenize{#2}}\\[0.4em]
+          \small\textcolor{grisTexte}{#3}
+        \end{minipage}}%
+    }
+    \caption{#3}\label{#4}
+  \end{figure}}
+
+% Diagramme généré (PDF vectoriel dans figures/diagrammes/)
+\newcommand{\diagramme}[4][0.95\linewidth]{%
+  \begin{figure}[htbp]
+    \centering
+    \includegraphics[width=#1,keepaspectratio,height=0.36\textheight]{figures/diagrammes/#2}
+    \caption{#3}\label{#4}
+  \end{figure}}
+
+% Encadré « À retenir »
+\newtcolorbox{aretenir}[1][À retenir]{colback=bleuSentinel!5, colframe=bleuSentinel,
+  fonttitle=\bfseries, title=#1, boxrule=0.6pt, arc=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt}
+
+% Introduction / conclusion de chapitre
+\newenvironment{introchapitre}{\par\noindent\textbf{Introduction}\par\noindent\itshape}{\par\medskip}
+\newenvironment{conclusionchapitre}{\par\medskip\noindent\textbf{Conclusion}\par\noindent\itshape}{\par}
+
+% Sous-capture pour une grille de captures (dans une figure)
+%   \souscapture[largeur]{fichier.png}{légende}
+\newcommand{\souscapture}[3][0.48\linewidth]{%
+  \begin{subfigure}[t]{#1}\centering
+  \IfFileExists{figures/captures/#2}{\fcolorbox{grisClair!60!black}{white}{\includegraphics[width=0.97\linewidth,height=0.22\textheight,keepaspectratio]{figures/captures/#2}}}{%
+  \fcolorbox{rougeAfaire}{rougeAfaire!5}{\begin{minipage}[c][0.52\linewidth][c]{0.93\linewidth}\centering\footnotesize\textcolor{rougeAfaire}{\textbf{Capture à insérer}}\\[0.3em]\texttt{\detokenize{#2}}\end{minipage}}}%
+  \caption{#3}\end{subfigure}}
+
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}

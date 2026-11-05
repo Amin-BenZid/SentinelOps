@@ -1,0 +1,20 @@
+flowchart TB
+  subgraph C["1 · Collecte (toutes les 5 s, en parallèle)"]
+    direction LR
+    H["HostCollector<br/>CPU, RAM, disque, charge"]
+    D["DockerCollector<br/>CPU, RAM, réseau, redémarrages"]
+    P["PrometheusCollector<br/>séries autorisées + up"]
+  end
+  subgraph DET["2 · Détection"]
+    direction LR
+    T["ThresholdDetector<br/>règles de seuil + durée « for »"]
+    A["AnomalyDetector<br/>score z robuste (médiane, MAD)"]
+  end
+  S{{"Signal : règle · entité · sévérité · durée · preuves"}}
+  AM["3 · AlertManager<br/>automate d'états + corrélation en incidents"]
+  SN["ProcessSnapshotter<br/>top 5 processus"]
+  DB[("SQLite : metrics · alerts · notifications_outbox")]
+  C --> DET --> S --> AM
+  AM -->|transactions| DB
+  AM -. au déclenchement .-> SN
+  C -->|métriques annotées| DB

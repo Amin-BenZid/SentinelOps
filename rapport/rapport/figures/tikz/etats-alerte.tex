@@ -1,0 +1,21 @@
+% Automate d'états d'une alerte (TikZ)
+\begin{tikzpicture}[
+  font=\sffamily\footnotesize,
+  st/.style={draw=grisTexte, thick, rounded corners=4pt, minimum width=3.1cm, minimum height=1.25cm, align=center},
+  fire/.style={st, draw=bleuSentinel, very thick, fill=bleuSentinel!10},
+  arr/.style={-{Stealth[length=2.2mm]}, draw=grisTexte, thick},
+  lbl/.style={font=\sffamily\scriptsize, text=grisTexte, align=center}]
+  \fill[grisTexte] (-1.6,0) circle (1.6mm);
+  \node[lbl, below=2mm] at (-1.6,0) {condition\\vraie};
+  \node[st]   (p) at (1.6,0)  {\textbf{PENDING}\\[-1pt]{\scriptsize en mémoire seulement}};
+  \node[fire] (f) at (7.6,0)  {\textbf{FIRING}\\[-1pt]{\scriptsize alerte + outbox}};
+  \node[st]   (r) at (13.6,0) {\textbf{RESOLVED}\\[-1pt]{\scriptsize outbox « resolved »}};
+  \node[draw=grisTexte, dashed, rounded corners=4pt, minimum width=2.8cm, minimum height=0.8cm, font=\sffamily\scriptsize] (d) at (-0.4,-2.3) {abandon silencieux};
+  \draw[arr] (-1.4,0) -- (p);
+  \draw[arr] (p) -- node[lbl, above=2pt]{maintenue pendant\\la durée « for »} (f);
+  \draw[arr] (f) -- node[lbl, above=2pt]{disparue, règle supprimée\\ou résolution manuelle} (r);
+  \draw[arr] ([xshift=-6mm]p.south) |- node[lbl, pos=0.3, left]{disparue\\avant « for »} (d.east);
+  \draw[arr] (f.north) .. controls +(0.9,1.5) and +(-0.9,1.5) .. node[lbl, above]{toujours vraie : last\_seen, hit\_count + 1} (f.north east);
+  \draw[arr] (r.south) -- ++(0,-2.6) -| node[lbl, pos=0.3, below]{résolue à la main alors que la condition est toujours vraie} ([xshift=8mm]p.south);
+  \node[lbl, text width=4.6cm, below=0.5cm of f, align=center, text=bleuSentinel] {Acquitter = attribut \texttt{acked\_by}\\l'alerte reste FIRING et\\se résout toute seule};
+\end{tikzpicture}

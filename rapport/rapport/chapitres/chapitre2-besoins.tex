@@ -1,0 +1,132 @@
+\chapter{Analyse et spécification des besoins}
+\label{chap:besoins}
+
+\begin{introchapitre}
+Ce chapitre traduit la problématique en exigences précises. Il identifie les acteurs du
+système, puis détaille les besoins fonctionnels et non fonctionnels, avant de les représenter
+par un diagramme de cas d'utilisation et la description des cas principaux.
+\end{introchapitre}
+
+\section{Identification des acteurs}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.8cm}L{2.4cm}Y}
+\toprule
+\textbf{Acteur} & \textbf{Type} & \textbf{Rôle} \\
+\midrule
+Administrateur (opérateur) & humain & se connecte à l'interface, suit l'état de l'infrastructure, traite les incidents, gère les règles et les notifications \\
+Agent de collecte & système & collecte les métriques, détecte les problèmes et fait évoluer les alertes ; fonctionne sans intervention humaine \\
+Service de notification & système externe & Slack (webhook) et serveur SMTP qui reçoivent les messages d'alerte et de résolution \\
+\bottomrule
+\end{tabularx}
+\caption{Acteurs du système}
+\label{tab:acteurs}
+\end{table}
+
+\section{Besoins fonctionnels}
+
+\begin{longtable}{L{1.2cm}L{4.2cm}p{8.6cm}}
+\toprule
+\textbf{Réf.} & \textbf{Besoin} & \textbf{Description} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Réf.} & \textbf{Besoin} & \textbf{Description} \\
+\midrule
+\endhead
+BF-01 & Collecter les métriques & CPU, mémoire, disque et charge de l'hôte ; CPU, mémoire, réseau et redémarrages de chaque conteneur ; séries choisies de tout exportateur Prometheus ; toutes les 5 secondes. \\
+BF-02 & Gérer des règles de seuil & créer, modifier, activer, désactiver et supprimer des règles (métrique, opérateur, seuil, durée, sévérité). Les règles par défaut sont fournies dans un fichier YAML. \\
+BF-03 & Détecter les anomalies & signaler une valeur anormale par rapport au comportement récent d'une métrique, sans seuil écrit à la main. \\
+BF-04 & Gérer le cycle de vie des alertes & n'ouvrir une alerte qu'après la durée définie, ne jamais la dupliquer, la résoudre automatiquement quand la condition disparaît. \\
+BF-05 & Regrouper en incidents & rattacher à un même incident les alertes d'une même entité apparues dans une fenêtre de temps. \\
+BF-06 & Expliquer les alertes & conserver les valeurs mesurées qui justifient l'alerte et une capture des processus les plus consommateurs. \\
+BF-07 & Notifier & envoyer un message Slack et un e-mail au déclenchement et à la résolution, avec nouvelles tentatives en cas d'échec et heures silencieuses. \\
+BF-08 & Traiter une alerte & acquitter, retirer l'acquittement, résoudre manuellement, rouvrir. \\
+BF-09 & Visualiser en temps réel & état de chaque entité, courbes avec plage attendue, incidents, mise à jour sans rechargement de la page. \\
+BF-10 & Consulter l'historique & métriques sur 15 min, 1 h, 6 h et 24 h ; chronologie et post-mortem d'un incident. \\
+BF-11 & Opérer les conteneurs & consulter les journaux d'un conteneur et le redémarrer depuis l'interface. \\
+BF-12 & Authentifier & connexion par identifiant et mot de passe, changement obligatoire du mot de passe initial, déconnexion. \\
+BF-13 & Configurer & paramétrer Slack, SMTP, heures silencieuses et détection d'anomalies depuis l'interface. \\
+BF-14 & Déployer en une commande & démarrer l'ensemble et indiquer quand la plateforme est réellement prête. \\
+\bottomrule
+\caption{Besoins fonctionnels}
+\label{tab:bf}
+\end{longtable}
+
+\section{Besoins non fonctionnels}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.2cm}Y}
+\toprule
+\textbf{Exigence} & \textbf{Critère mesurable} \\
+\midrule
+Simplicité & installation par une seule commande ; aucune dépendance externe (pas de base de données à administrer). \\
+Réactivité & cycle de collecte de 5 s ; interface mise à jour toutes les 2 s. \\
+Fiabilité & aucune notification perdue en cas de panne d'un canal ou de redémarrage ; résolution automatique des alertes. \\
+Sécurité & API fermée par défaut ; aucun mot de passe par défaut ; accès Docker minimal ; conteneurs sans privilèges. \\
+Maintenabilité & tests automatisés exécutés à chaque modification ; schéma de base versionné. \\
+Portabilité & tout hôte disposant de Docker (Linux, Windows, macOS ; x86-64 et ARM64). \\
+Sobriété & rétention limitée (24 h brutes, 7 jours agrégées) pour maîtriser la taille de la base. \\
+Ergonomie & statuts lisibles sans dépendre de la couleur ; utilisable au clavier ; affichage adapté aux petits écrans. \\
+\bottomrule
+\end{tabularx}
+\caption{Besoins non fonctionnels}
+\label{tab:bnf}
+\end{table}
+
+\section{Diagramme de cas d'utilisation global}
+
+La figure~\ref{fig:cu-global} représente les interactions entre les acteurs et le système.
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\linewidth}{!}{\input{figures/tikz/cas-utilisation.tex}}
+\caption{Diagramme de cas d'utilisation global}
+\label{fig:cu-global}
+\end{figure}
+
+\section{Description des cas d'utilisation principaux}
+
+\newcommand{\fichecu}[6]{%
+\begin{table}[htbp]\centering\small
+\begin{tabularx}{\linewidth}{L{3.2cm}Y}
+\toprule
+\multicolumn{2}{l}{\textbf{Cas d'utilisation : #1}}\\
+\midrule
+Acteur & #2 \\
+Préconditions & #3 \\
+Scénario nominal & #4 \\
+Alternatives & #5 \\
+Postconditions & #6 \\
+\bottomrule
+\end{tabularx}
+\caption{Description du cas \og #1 \fg{}}
+\end{table}}
+
+\fichecu{S'authentifier}{Administrateur}
+{la plateforme est démarrée.}
+{1.~L'administrateur saisit son identifiant et son mot de passe. 2.~Le système vérifie
+l'empreinte du mot de passe. 3.~Le système crée une session et ouvre le tableau de bord.}
+{2a.~Identifiants incorrects : message d'erreur ; après 5 échecs en 15 minutes depuis la même
+adresse, la connexion est bloquée temporairement. 3a.~Première connexion : le système impose le
+choix d'un nouveau mot de passe d'au moins 8 caractères avant tout accès.}
+{une session valable 12 heures (2 heures d'inactivité au plus) est ouverte.}
+
+\fichecu{Traiter un incident}{Administrateur}
+{l'administrateur est connecté ; une alerte est déclenchée.}
+{1.~L'incident apparaît en tête de la liste. 2.~L'administrateur ouvre le détail de l'alerte.
+3.~Il consulte la cause (valeurs mesurées, courbe, processus). 4.~Il acquitte l'alerte.
+5.~Une fois le problème corrigé, l'alerte se résout automatiquement et une notification de
+résolution est envoyée.}
+{4a.~Il résout l'alerte manuellement. 4b.~Pour un conteneur, il consulte ses journaux ou le
+redémarre. 5a.~Il exporte le post-mortem au format Markdown.}
+{l'alerte est résolue et son historique reste consultable 30 jours.}
+
+\begin{conclusionchapitre}
+Les besoins étant spécifiés, le chapitre suivant présente la conception retenue pour y
+répondre : architecture, données, automate d'alertes et détection d'anomalies.
+\end{conclusionchapitre}

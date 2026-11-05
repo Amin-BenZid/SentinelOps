@@ -1,0 +1,18 @@
+sequenceDiagram
+  autonumber
+  actor U as Administrateur
+  participant B as Navigateur
+  participant API as API (Express)
+  participant DB as SQLite
+  U->>B: identifiant + mot de passe
+  B->>API: POST /api/auth/login
+  API->>API: limiteur (5 échecs / 15 min / IP)
+  API->>DB: utilisateur, sel, empreinte
+  API->>API: PBKDF2-SHA512 + comparaison à temps constant
+  API->>DB: INSERT session (SHA-256 du jeton, expiration)
+  API-->>B: jeton (256 bits)
+  B->>API: GET /api/alerts (Authorization: Bearer jeton)
+  API->>DB: session valide ? (12 h max, 2 h d'inactivité)
+  API-->>B: 200 + données
+  B->>API: WebSocket /ws?token=…
+  API-->>B: SNAPSHOT puis TICK toutes les 2 s

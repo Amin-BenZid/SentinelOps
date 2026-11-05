@@ -1,0 +1,52 @@
+% =====================================================================
+%  Page de garde (modèle tunisien). Déposer les logos dans
+%  figures/logos/ : logo-ecole.png et logo-entreprise.png
+% =====================================================================
+\newcommand{\logo}[2]{%
+  \IfFileExists{figures/logos/#1}{\includegraphics[height=2.3cm,width=4.2cm,keepaspectratio]{figures/logos/#1}}%
+  {\fcolorbox{rougeAfaire}{rougeAfaire!5}{\parbox[c][2cm][c]{3.8cm}{\centering\scriptsize\textcolor{rougeAfaire}{#2\\\texttt{figures/logos/#1}}}}}}
+
+\begin{titlepage}
+  \AddToShipoutPictureBG*{%
+    \AtPageLowerLeft{\color{bleuSentinel}\rule{\paperwidth}{0.6cm}}}
+  \newgeometry{top=1.6cm,bottom=2cm,left=2.2cm,right=2.2cm}
+  \centering
+  {\small
+  \begin{minipage}[c]{0.27\textwidth}\centering\logo{logo-ecole.png}{Logo de l'école}\end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.42\textwidth}\centering\linespread{1.05}\selectfont
+    République Tunisienne\\
+    Ministère de l'Enseignement Supérieur\\ et de la Recherche Scientifique\\[0.3em]
+    \universite\\
+    \textbf{\ecole}
+  \end{minipage}%
+  \hfill
+  \begin{minipage}[c]{0.27\textwidth}\centering\logo{logo-entreprise.png}{Logo de l'entreprise}\end{minipage}
+  }
+
+  \vspace{1.6cm}
+  {\color{bleuSentinel}\rule{\textwidth}{1.2pt}}\\[0.5cm]
+  {\LARGE\bfseries\scshape \typeRapport}\\[0.25cm]
+  {\large \diplome}\\[0.5cm]
+  {\color{bleuSentinel}\rule{\textwidth}{0.4pt}}\\[0.9cm]
+
+  {\Huge\bfseries\color{bleuSentinel} SentinelOps}\\[0.4cm]
+  {\Large Plateforme auto-hébergée de supervision et d'alerte\\ intelligente pour infrastructures conteneurisées}\\[0.9cm]
+  {\color{bleuSentinel}\rule{\textwidth}{1.2pt}}
+
+  \vspace{1.3cm}
+  {\large Réalisé par}\\[0.2cm]
+  {\LARGE\bfseries \etudiant}
+
+  \vspace{1.3cm}
+  \begin{tabular}{@{}r@{\hspace{0.8em}}l@{}}
+    \textbf{Organisme d'accueil :} & \entreprise \\[0.25em]
+    \textbf{Encadrant professionnel :} & \encadrantPro \\[0.25em]
+    \textbf{Encadrant académique :} & \encadrantAca \\[0.25em]
+    \textbf{Période du stage :} & \periodeStage
+  \end{tabular}
+
+  \vfill
+  {\large Année universitaire \anneeUniv}
+  \restoregeometry
+\end{titlepage}

@@ -1,0 +1,19 @@
+sequenceDiagram
+  autonumber
+  participant AG as Agent
+  participant DB as SQLite
+  participant W as Worker outbox (dashboard)
+  participant N as Slack / SMTP
+  AG->>DB: transaction : alerte + ligne outbox (pending)
+  loop toutes les 3 secondes
+    W->>DB: lignes pending dont next_attempt_at est passé
+    W->>N: envoyer le message
+    alt succès
+      N-->>W: 200 OK
+      W->>DB: status = sent
+    else échec (ex. 503)
+      N-->>W: erreur
+      W->>DB: attempts + 1, last_error, next_attempt_at = +15 s, 30 s, 60 s, 120 s
+    end
+  end
+  Note over W,DB: après 5 échecs : status = failed

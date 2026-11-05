@@ -1,0 +1,78 @@
+erDiagram
+  ALERTS ||--o{ NOTIFICATIONS_OUTBOX : "déclenche"
+  USERS ||--o{ SESSIONS : "possède"
+  RULES ||..o{ ALERTS : "rule_name"
+  METRICS }o..|| METRICS_1M : "agrégées en"
+  ALERTS {
+    int id PK
+    text fingerprint "unique si FIRING"
+    text correlation_id
+    text rule_name
+    text detector
+    text entity_id
+    text severity
+    text state "firing | resolved"
+    int first_seen
+    int fired_at
+    int last_seen
+    int resolved_at
+    text resolved_by
+    int hit_count
+    text evidence "JSON"
+    text process_snapshot "JSON"
+    text acked_by
+    int acked_at
+  }
+  NOTIFICATIONS_OUTBOX {
+    int id PK
+    int alert_id FK
+    text event "firing | resolved"
+    text status
+    int attempts
+    int next_attempt_at
+    text last_error
+  }
+  METRICS {
+    int id PK
+    int ts
+    text entity_id
+    text metric_name
+    real metric_value
+    int is_anomaly
+    real lower_bound
+    real upper_bound
+  }
+  METRICS_1M {
+    text entity_id PK
+    text metric_name PK
+    int bucket_ts PK
+    real avg_value
+    real min_value
+    real max_value
+  }
+  RULES {
+    text id PK
+    text metric_name
+    text operator
+    real threshold
+    int duration_seconds
+    text severity
+    int is_active
+  }
+  USERS {
+    int id PK
+    text username
+    text password_hash
+    text salt
+    int must_change_password
+  }
+  SESSIONS {
+    text token_hash PK
+    int user_id FK
+    int expires_at
+    int last_seen_at
+  }
+  SETTINGS {
+    text key PK
+    text value
+  }

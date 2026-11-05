@@ -1,0 +1,25 @@
+flowchart TB
+  subgraph H["Serveur (VPS ou VM cloud) · Docker Engine"]
+    direction TB
+    subgraph NDEF["réseau default"]
+      AG["agent<br/>uid 1000 · FS lecture seule<br/>cap_drop ALL"]
+      DA["dashboard<br/>uid 1000 · FS lecture seule<br/>cap_drop ALL"]
+    end
+    subgraph NRO["réseau interne docker-ro"]
+      PRO["docker-proxy-ro<br/>CONTAINERS=1"]
+    end
+    subgraph NOPS["réseau interne docker-ops"]
+      POPS["docker-proxy-ops<br/>CONTAINERS=1, ALLOW_RESTARTS=1"]
+    end
+    VOL[("volume sentinelops_data<br/>/data/sentinelops.db")]
+    SOCK["/var/run/docker.sock"]
+    INIT["volume-init<br/>(exécution unique)"]
+  end
+  FW["Pare-feu du fournisseur<br/>22 (+ 4000) depuis votre IP"]
+  USER["Poste de l'administrateur"]
+  USER -->|SSH / tunnel ou :4000| FW --> DA
+  AG --- VOL
+  DA --- VOL
+  INIT -. chown 1000 .-> VOL
+  AG --> PRO --> SOCK
+  DA --> POPS --> SOCK

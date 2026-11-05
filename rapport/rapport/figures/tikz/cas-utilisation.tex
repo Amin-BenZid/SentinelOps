@@ -1,0 +1,40 @@
+% Diagramme de cas d'utilisation global (TikZ, notation UML)
+\begin{tikzpicture}[
+  font=\sffamily\footnotesize,
+  uc/.style={ellipse, draw=bleuSentinel, thick, fill=bleuSentinel!6, minimum width=4.5cm, minimum height=0.85cm, align=center, inner sep=1pt},
+  lk/.style={draw=grisTexte},
+  inc/.style={-{Stealth[length=2mm]}, dashed, draw=grisTexte},
+  actor/.pic={
+    \draw[thick] (0,0.55) circle (0.17);
+    \draw[thick] (0,0.38) -- (0,-0.12) (-0.3,0.22) -- (0.3,0.22) (0,-0.12) -- (-0.22,-0.5) (0,-0.12) -- (0.22,-0.5);}]
+  % acteurs
+  \pic at (-1.2,0.2) {actor}; \node[align=center] at (-1.2,-0.75) {Administrateur\\(opérateur)};
+  \pic at (14.4,1.6) {actor}; \node[align=center] at (14.4,0.65) {Agent de collecte\\«système»};
+  \pic at (14.4,-3.4) {actor}; \node[align=center] at (14.4,-4.35) {Service de\\notification «système»};
+  % frontière du système
+  \draw[rounded corners=6pt, draw=grisTexte, thick] (0.6,4.4) rectangle (12.6,-5.4);
+  \node[font=\sffamily\footnotesize\bfseries, anchor=north west] at (0.8,4.3) {SentinelOps};
+  % cas utilisateur
+  \node[uc] (auth) at (3.4,3.4) {S'authentifier};
+  \node[uc] (ent)  at (3.4,2.2) {Consulter l'état des entités};
+  \node[uc] (met)  at (3.4,1.0) {Visualiser les métriques};
+  \node[uc] (inc)  at (3.4,-0.2) {Consulter les incidents};
+  \node[uc] (ack)  at (3.4,-1.4) {Acquitter / résoudre une alerte};
+  \node[uc] (rul)  at (3.4,-2.6) {Gérer les règles};
+  \node[uc] (set)  at (3.4,-3.8) {Configurer les notifications};
+  \node[uc] (ops)  at (3.4,-5.0) {Consulter les journaux /\\redémarrer un conteneur};
+  \node[uc] (det)  at (8.8,-0.2) {Consulter le détail d'une alerte};
+  \node[uc] (pm)   at (8.8,-1.5) {Exporter un post-mortem};
+  % cas système
+  \node[uc] (col)  at (9.6,3.4) {Collecter les métriques};
+  \node[uc] (ano)  at (9.6,2.2) {Détecter seuils et anomalies};
+  \node[uc] (cyc)  at (9.6,1.0) {Déclencher / résoudre les alertes};
+  \node[uc] (snd)  at (9.6,-3.4) {Envoyer les notifications};
+  % liens acteurs
+  \foreach \u in {auth,ent,met,inc,ack,rul,set,ops} \draw[lk] (-0.85,0) -- (\u.west);
+  \foreach \u in {col,ano,cyc} \draw[lk] (14.0,1.4) -- (\u.east);
+  \draw[lk] (14.0,-3.6) -- (snd.east);
+  % relations
+  \draw[inc] (inc.east) -- node[above, font=\sffamily\scriptsize, text=grisTexte]{«extend»} (det.west);
+  \draw[inc] (pm.north) -- node[right, font=\sffamily\scriptsize, text=grisTexte]{«extend»} (det.south);
+\end{tikzpicture}

@@ -311,9 +311,9 @@ Problem → objectives → existing solutions → architecture → alert lifecyc
 
 ## 11. Open questions (to fill in)
 - [ ] Official stage subject / title (convention or cahier des charges)
-- [ ] Host company, supervisors (academic + professional)
+- [x] Host company: **Barmaj Information Technology**; professional supervisor: **M. Yousef Abed Elberi**; academic supervisor: [ ] to fill
 - [ ] Start/end dates, report deadline, defense date
-- [ ] Report language & school template
+- [x] Report language: French (LaTeX report in `rapport/`)
 - [ ] Which roadmap phases are mandatory for the jury
 
 ## 12. Work log
@@ -321,3 +321,4 @@ Problem → objectives → existing solutions → architecture → alert lifecyc
 - 2026-10-28 — v0.2: fixed all 16 review issues (§7), added tests + CI + README + `.env.example`; verified end-to-end except image builds.
 - 2026-10-28 — CI: npm audit failed on the pushed commit (old package.json had been restored locally); re-applied nodemailer 10.2.1 / express 4.22.3, added Dependabot. `.env.example` was deleted on GitHub (commit 7e215ea).
 - 2026-10-28 — UI/UX redesign (§7b), verified in Chromium (dark, light, mobile width) against live data.
+- 2026-11-05 — Rapport de stage (French, LaTeX) written: `rapport/rapport/` (5 chapters + intro/conclusion, 5 annexes, 13 vector diagrams, 31 screenshot placeholders listed in `CAPTURES.md`), draft PDF 76 pages. Still to fill: academic supervisor, school/university, dates, company presentation, hardware, resource-usage numbers, screenshots, logos.

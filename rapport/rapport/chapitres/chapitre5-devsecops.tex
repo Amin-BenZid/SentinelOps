@@ -1,0 +1,264 @@
+\chapter{Sécurité, tests, intégration continue et déploiement}
+\label{chap:devsecops}
+
+\begin{introchapitre}
+Un outil de supervision a accès à tout l'hôte : il doit lui-même être sûr. Ce chapitre présente
+les mesures de sécurité, la chaîne d'intégration continue, les tests, le déploiement sur un
+serveur et l'évaluation de la solution.
+\end{introchapitre}
+
+\section{Sécurité de l'application}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.3cm}L{5.2cm}Y}
+\toprule
+\textbf{Risque} & \textbf{Mesure} & \textbf{Vérification} \\
+\midrule
+Accès non autorisé à l'API & API fermée par défaut, jeton porteur, seules \code{POST /api/auth/login} et \code{GET /api/health} sont publiques & test automatique sur toutes les routes, figure~\ref{fig:controles} \\
+Vol de mots de passe & PBKDF2-SHA512, 100\,000 itérations, sel aléatoire \cite{rfc8018} & test de connexion \\
+Vol de jeton en base & seule l'empreinte SHA-256 du jeton est stockée & revue de code \\
+Force brute & 5 échecs par 15 minutes et par couple (IP, utilisateur) & test automatique \\
+Session oubliée & durée maximale 12 h, inactivité 2 h, révocation à la déconnexion & tests automatiques \\
+Mot de passe initial & généré au premier lancement, changement obligatoire & test automatique \\
+Secrets exposés & secrets en écriture seule : l'API ne renvoie jamais le webhook ni le mot de passe SMTP & test automatique \\
+XSS, clickjacking & en-têtes CSP, \code{X-Frame-Options: DENY}, \code{nosniff} \cite{owasp} & test automatique \\
+Injection via identifiant & identifiants de conteneur validés par expression régulière & test automatique \\
+WebSocket ouvert & jeton exigé à la connexion & test automatique \\
+\bottomrule
+\end{tabularx}
+\caption{Mesures de sécurité de l'application}
+\label{tab:securite-app}
+\end{table}
+
+\section{Sécurité des conteneurs}
+
+Le socket Docker donne un contrôle total de l'hôte. En version 0.1 il était monté
+directement dans les conteneurs ; en version 0.2, aucun conteneur applicatif n'y a accès. Chacun
+passe par un proxy \cite{socketproxy} qui n'autorise que les appels nécessaires
+(tableau~\ref{tab:proxies}), sur un réseau interne sans port publié.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.4cm}L{2.4cm}Y}
+\toprule
+\textbf{Proxy} & \textbf{Client} & \textbf{Appels autorisés} \\
+\midrule
+\code{docker-proxy-ro} & agent & lecture des conteneurs (liste, inspection, statistiques) \\
+\code{docker-proxy-ops} & dashboard & journaux et redémarrage ; ni création, ni \code{exec}, ni suppression \\
+\bottomrule
+\end{tabularx}
+\caption{Proxies d'accès à Docker}
+\label{tab:proxies}
+\end{table}
+
+Les conteneurs applicatifs suivent les recommandations du NIST SP 800-190 \cite{nist800190}
+et de Docker \cite{dockersecurity} :
+\begin{itemize}
+  \item exécution sous un utilisateur non privilégié (uid 1000) ;
+  \item système de fichiers en lecture seule, seul \code{/tmp} est inscriptible en mémoire ;
+  \item suppression de toutes les capacités Linux (\code{cap_drop: ALL}) et
+        \code{no-new-privileges} ;
+  \item images multi-étapes : les outils de compilation ne sont pas dans l'image finale ;
+  \item dashboard publié uniquement sur \code{127.0.0.1} par défaut.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\souscapture[0.99\linewidth]{cap-26-docker-ps.png}{Conteneurs en fonctionnement (\texttt{docker ps})}\\[0.6em]
+\souscapture{cap-30-curl-401.png}{Appel sans jeton : 401}\label{fig:curl401}\hfill
+\souscapture{cap-31-proxy-403.png}{Appel interdit par le proxy : 403}\label{fig:proxy403}
+\caption{Conteneurs et vérification des contrôles d'accès}
+\label{fig:controles}
+\end{figure}
+
+\section{Intégration continue}
+
+Chaque envoi sur GitHub déclenche le pipeline de la figure~\ref{fig:ci}, exécuté par GitHub
+Actions.
+
+\diagramme[0.95\linewidth]{ci-pipeline.pdf}{Pipeline d'intégration continue}{fig:ci}
+
+\begin{itemize}
+  \item \textbf{agent} : installation des dépendances et exécution des tests pytest ;
+  \item \textbf{server} : \code{npm ci}, tests et \code{npm audit} (échec si une vulnérabilité
+        haute est trouvée) ;
+  \item \textbf{ui} : vérification des types TypeScript et construction ;
+  \item \textbf{images} : construction des deux images puis analyse par Trivy \cite{trivy} ;
+        le pipeline échoue en cas de vulnérabilité critique ou haute corrigeable.
+\end{itemize}
+
+Deux mesures protègent la chaîne elle-même : les actions tierces sont épinglées par leur
+empreinte SHA complète plutôt que par une étiquette modifiable \cite{ghhardening}, et
+Dependabot \cite{dependabot} propose chaque semaine la mise à jour des dépendances.
+
+Le pipeline a joué son rôle pendant le stage : Trivy a bloqué une image contenant des
+vulnérabilités dans des paquets du système de base et \code{npm audit} a signalé une dépendance
+vulnérable. Les deux ont été corrigés par mise à jour avant la fusion
+(figure~\ref{fig:ci-captures}).
+
+\begin{figure}[htbp]
+\centering
+\souscapture{cap-20-ci-vert.png}{Pipeline réussi}\hfill
+\souscapture{cap-21-trivy-rouge.png}{Trivy bloquant une image vulnérable}
+\caption{Intégration continue en pratique}
+\label{fig:ci-captures}
+\end{figure}
+
+\section{Tests}
+
+\subsection{Tests automatisés}
+
+Le projet compte \textbf{51 tests automatisés} : 37 pour l'agent (pytest) et 14 pour le
+serveur (\code{node:test}). Ils s'exécutent en quelques secondes, sur une base SQLite
+temporaire, sans Docker.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{4.4cm}cY}
+\toprule
+\textbf{Fichier} & \textbf{Tests} & \textbf{Ce qui est vérifié} \\
+\midrule
+\code{test_alert_manager.py} & 11 & attente avant déclenchement, pic court ignoré, pas de doublon, résolution automatique, alerte acquittée, règle supprimée, corrélation, échec de l'instantané sans blocage \\
+\code{test_detectors.py} & 18 & opérateurs des seuils, validation de \code{rules.yaml}, anomalie après apprentissage, séries plates, saut durable, formules Docker, format Prometheus \\
+\code{test_migrations.py} & 4 & base neuve, réexécution sans effet, mise à niveau d'une base v0.1, index unique \\
+\code{test_retention_and_seed.py} & 4 & agrégation et purge, purge des alertes, initialisation unique des règles \\
+\code{api.test.js} & 14 & routes fermées, connexion et limitation, sessions, secrets, règles, cycle de vie, outbox, WebSocket, en-têtes \\
+\midrule
+\textbf{Total} & \textbf{51} & \\
+\bottomrule
+\end{tabularx}
+\caption{Répartition des tests automatisés}
+\label{tab:tests}
+\end{table}
+
+\begin{figure}[htbp]
+\centering
+\souscapture{cap-24-pytest.png}{Agent : \texttt{pytest}}\hfill
+\souscapture{cap-25-npm-test.png}{Serveur : \texttt{npm test}}
+\caption{Exécution des tests}
+\label{fig:tests}
+\end{figure}
+
+\subsection{Scénarios de validation de bout en bout}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{4cm}L{4.6cm}Y}
+\toprule
+\textbf{Scénario} & \textbf{Action} & \textbf{Résultat attendu et obtenu} \\
+\midrule
+Charge CPU d'un conteneur & \code{docker run} d'un conteneur qui boucle (stress) & alerte d'anomalie en environ 15 s, alerte de seuil après 120 s, regroupées dans un même incident \\
+Pic court & charge de 10 secondes & aucune alerte (abandon à l'état PENDING) \\
+Fin de charge & arrêt du conteneur de test & résolution automatique et message de résolution \\
+Webhook indisponible & URL Slack invalide & nouvel essai à 15, 30, 60 puis 120 s, puis échec enregistré \\
+Acquittement & bouton \og Acquitter \fg{} & l'alerte reste ouverte, sans nouvelle notification, puis se résout seule \\
+Accès sans session & \code{curl} sur \code{/api/alerts} & réponse 401 \\
+Action Docker interdite & création de conteneur via le proxy & réponse 403 \\
+\bottomrule
+\end{tabularx}
+\caption{Scénarios de validation manuelle}
+\label{tab:scenarios}
+\end{table}
+
+\section{Déploiement sur un serveur}
+
+SentinelOps a été installé sur une instance cloud Linux vierge, sans outil
+d'infrastructure-as-code, afin de vérifier qu'une personne peut l'installer seule à partir du
+guide (annexe~\ref{annexe:installation}). La figure~\ref{fig:deploiement} montre le déploiement
+obtenu.
+
+\diagramme[0.9\linewidth]{deploiement.pdf}{Diagramme de déploiement}{fig:deploiement}
+
+Deux modes d'accès sont possibles :
+\begin{itemize}
+  \item \textbf{tunnel SSH} (recommandé) : le dashboard reste lié à \code{127.0.0.1} et aucun
+        port supplémentaire n'est ouvert ; l'opérateur exécute
+        \code{ssh -L 4000:localhost:4000 utilisateur@serveur} ;
+  \item \textbf{port public} : \code{sen run --public}, avec une règle de pare-feu limitée à
+        l'adresse IP de l'opérateur, de préférence derrière un proxy HTTPS.
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\souscapture[0.32\linewidth]{cap-27-instance-cloud.png}{Instance cloud}\hfill
+\souscapture[0.32\linewidth]{cap-28-pare-feu.png}{Règles du pare-feu}\hfill
+\souscapture[0.32\linewidth]{cap-29-dashboard-serveur.png}{Dashboard du serveur}
+\caption{Déploiement sur un serveur cloud}
+\label{fig:cloud}
+\end{figure}
+
+\section{Évaluation}
+\label{sec:evaluation}
+
+\subsection{Comparaison des deux estimateurs}
+
+Pour justifier le choix de la médiane, les deux méthodes ont été appliquées à la même série :
+30 mesures autour de 20~\% puis un saut durable à 75~\%, avec les mêmes paramètres
+(fenêtre de 30, $k = 3$, plancher 2).
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Estimateur} & \textbf{Mesures signalées} & \textbf{Alerte (durée 15 s)} \\
+\midrule
+Moyenne et écart-type & 3 (15 s) & non déclenchée \\
+Médiane et MAD & 15 (75 s) & déclenchée \\
+\bottomrule
+\end{tabular}
+\caption{Comportement face à un saut durable}
+\label{tab:estimateurs}
+\end{table}
+
+Avec la moyenne, l'anomalie fait elle-même grimper l'écart-type et cesse d'être signalée avant
+la fin de la durée de 15 secondes : l'incident passe inaperçu. Avec la médiane, elle reste
+signalée jusqu'à ce que la nouvelle valeur occupe la moitié de la fenêtre, puis devient la
+nouvelle normale.
+
+\subsection{Délais de détection et de notification}
+
+Avec une cadence de 5 s et un passage du travailleur d'outbox toutes les 3 s, une anomalie passe
+à FIRING en 15 à 20 s, une règle de durée $d$ en $d$ à $d+5$ s (60 à 65 s pour le CPU de l'hôte),
+et la notification part au plus 3 s plus tard.
+
+\subsection{Consommation de ressources}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Conteneur} & \textbf{CPU moyen} & \textbf{Mémoire} & \textbf{Taille de l'image} \\
+\midrule
+agent & \afaire{x \%} & \afaire{x Mo} & \afaire{x Mo} \\
+dashboard & \afaire{x \%} & \afaire{x Mo} & \afaire{x Mo} \\
+proxies ($\times$2) & \afaire{x \%} & \afaire{x Mo} & \afaire{x Mo} \\
+\bottomrule
+\end{tabular}
+\caption{Consommation de ressources (relevée avec \texttt{docker stats} et \texttt{docker images})}
+\label{tab:ressources}
+\end{table}
+
+\subsection{Limites}
+
+\begin{itemize}
+  \item un seul hôte est supervisé par installation ;
+  \item SQLite limite le volume de données et l'écriture à un processus à la fois ;
+  \item le dashboard ne gère pas HTTPS lui-même : un proxy inverse est nécessaire en accès
+        public ;
+  \item un seul rôle (administrateur) ; pas de gestion fine des droits ;
+  \item la livraison au moins une fois peut produire un doublon de notification après un échec
+        partiel.
+\end{itemize}
+
+\begin{conclusionchapitre}
+SentinelOps protège l'hôte qu'il supervise, vérifie chaque modification par des tests et une
+analyse de sécurité automatiques, et s'installe sur un serveur réel en quelques minutes. Ses
+limites, identifiées clairement, orientent les perspectives présentées en conclusion.
+\end{conclusionchapitre}

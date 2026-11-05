@@ -1,0 +1,227 @@
+\chapter{Conception}
+\label{chap:conception}
+
+\begin{introchapitre}
+Ce chapitre présente les choix de conception de SentinelOps. Il décrit l'architecture
+globale, la conception de l'agent et de son automate d'alertes, la méthode de détection
+d'anomalies, le modèle de données et les principales interactions sous forme de diagrammes
+de séquence.
+\end{introchapitre}
+
+\section{Architecture globale}
+
+SentinelOps s'exécute sur un seul hôte, sous forme de cinq conteneurs Docker. Deux font le
+travail principal, deux protègent l'accès à Docker et un prépare le volume de données
+(figure~\ref{fig:architecture}).
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\linewidth}{!}{\input{figures/tikz/architecture.tex}}
+\caption{Architecture globale de SentinelOps}
+\label{fig:architecture}
+\end{figure}
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3cm}L{3.2cm}Y}
+\toprule
+\textbf{Conteneur} & \textbf{Technologie} & \textbf{Responsabilité} \\
+\midrule
+\code{agent} & Python 3.11 (asyncio) & collecter, détecter, faire évoluer les alertes, nettoyer les anciennes données \\
+\code{dashboard} & Node.js 24, Express, React & interface web, API REST, authentification, WebSocket, envoi des notifications \\
+\code{docker-proxy-ro} & proxy HAProxy & n'autorise que la lecture des conteneurs pour l'agent \\
+\code{docker-proxy-ops} & proxy HAProxy & n'autorise que les journaux et le redémarrage pour le dashboard \\
+\code{volume-init} & shell (exécution unique) & attribue le volume à l'utilisateur non privilégié (uid 1000) \\
+\bottomrule
+\end{tabularx}
+\caption{Rôle des conteneurs}
+\label{tab:conteneurs}
+\end{table}
+
+\begin{aretenir}[Principe d'architecture]
+L'agent et le dashboard ne s'appellent jamais directement : la \textbf{base SQLite est le
+contrat} entre eux. L'agent écrit les métriques et les alertes, le dashboard les lit et
+enregistre les actions des opérateurs. Chacun peut redémarrer sans interrompre l'autre.
+\end{aretenir}
+
+Les règles de conception suivantes ont guidé la refonte de la version 0.2 :
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{5cm}Y}
+\toprule
+\textbf{Règle} & \textbf{Problème résolu} \\
+\midrule
+Un seul schéma, défini par des migrations SQL versionnées partagées & le schéma défini à trois endroits en v0.1 : une colonne utilisée n'existait nulle part \\
+Un seul écrivain par groupe de colonnes & concurrence et responsabilités floues \\
+Outbox transactionnelle pour les notifications & notifications perdues ou envoyées pour une alerte annulée \\
+Automate d'états avec durée et index unique & alertes bruyantes et dupliquées \\
+Interface \code{Detector} commune & détecteur d'anomalies inutilisé ; extensibilité vers l'apprentissage automatique \\
+API fermée par défaut & API entièrement ouverte en v0.1 \\
+Accès Docker par proxies au moindre privilège & socket Docker monté en lecture-écriture \\
+Horodatages en millisecondes UTC & formats de date mélangés \\
+\bottomrule
+\end{tabularx}
+\caption{Règles de conception de la version 0.2}
+\label{tab:regles-conception}
+\end{table}
+
+\section{Conception de l'agent}
+
+\subsection{Chaîne de traitement}
+
+L'agent exécute une boucle à cadence fixe de 5 secondes. Les opérations lentes (appels à
+Docker, lecture des processus) s'exécutent dans des fils séparés afin de ne jamais bloquer la
+boucle (figure~\ref{fig:pipeline}).
+
+\diagramme[0.72\linewidth]{pipeline-agent.pdf}{Chaîne de traitement de l'agent}{fig:pipeline}
+
+\subsection{Diagramme de classes}
+
+Le contrat central est la classe \code{Signal} : un détecteur, quel qu'il soit, ne produit que
+des signaux, et le gestionnaire d'alertes ne consomme que des signaux. Ajouter un nouveau
+détecteur (par exemple un modèle Isolation Forest prévu en v0.2) ne demande donc aucune
+modification du cycle de vie des alertes (figure~\ref{fig:classes}).
+
+\diagramme[0.88\linewidth]{classes-agent.pdf}{Diagramme de classes de l'agent}{fig:classes}
+
+\subsection{Automate d'états d'une alerte}
+
+Le cycle de vie suit le modèle des règles d'alerte de Prometheus \cite{prometheus-rules}
+(figure~\ref{fig:etats}).
+
+\begin{figure}[htbp]
+\centering
+\resizebox{\linewidth}{!}{\input{figures/tikz/etats-alerte.tex}}
+\caption{Automate d'états d'une alerte}
+\label{fig:etats}
+\end{figure}
+
+\begin{itemize}
+  \item \textbf{PENDING} : la condition vient d'apparaître. L'état est conservé
+        \emph{uniquement en mémoire} : rien n'est écrit en base et personne n'est notifié. Si
+        la condition disparaît avant la durée \code{for}, elle est abandonnée silencieusement :
+        c'est ce qui supprime le bruit des pics passagers.
+  \item \textbf{FIRING} : la condition a duré au moins \code{for} secondes. Une transaction
+        unique écrit l'alerte et une ligne de notification. Les cycles suivants mettent
+        seulement à jour \code{last_seen}, le compteur et les dernières preuves.
+  \item \textbf{RESOLVED} : la condition a disparu (ou la règle a été supprimée). Une
+        transaction marque l'alerte résolue (\code{resolved_by = auto}) et crée une
+        notification de résolution.
+  \item L'\textbf{acquittement} n'est pas un état mais un attribut (\code{acked_by},
+        \code{acked_at}) : une alerte acquittée reste FIRING et se résout automatiquement.
+\end{itemize}
+
+Un \textbf{index unique partiel} sur l'empreinte (\code{sha256(règle:entité)}) des alertes à
+l'état FIRING garantit au niveau de la base qu'une même règle ne peut pas avoir deux alertes
+ouvertes sur une même entité, même en cas de concurrence.
+
+\subsection{Corrélation en incidents}
+
+Une nouvelle alerte rejoint l'incident d'une autre alerte ouverte si elles concernent la
+\textbf{même entité} et ont commencé à moins de \textbf{120 secondes} d'écart ; sinon un nouvel
+incident est créé avec un identifiant de la forme \code{inc-} suivi de 8 caractères
+hexadécimaux. Par exemple, lors des tests, une alerte de seuil et une alerte d'anomalie sur le
+CPU du même conteneur, apparues à la même seconde, ont été regroupées dans un seul incident.
+
+\section{Détection d'anomalies}
+
+\subsection{Principe : le score z robuste}
+
+Le détecteur signale une valeur éloignée du comportement récent d'une métrique sur une entité,
+sans seuil défini à la main. Pour chaque couple (entité, métrique), il conserve les 30 dernières
+valeurs (2 min 30 s) et, à partir de 10 valeurs, évalue chaque nouvelle mesure $x$ :
+
+\begin{equation}
+  \tilde{x} = \operatorname{médiane}(\text{fenêtre}), \qquad
+  \sigma = \max\!\left(1{,}4826 \times \operatorname{médiane}\left(\lvert x_i - \tilde{x}\rvert\right),\; 2\right), \qquad
+  z = \frac{x - \tilde{x}}{\sigma}
+\end{equation}
+
+La valeur est anormale si $\lvert z \rvert > 3$ \textbf{et} si elle s'écarte d'au moins 8 unités
+de la médiane. Le facteur 1,4826 rend l'écart absolu médian (MAD) comparable à un écart-type
+pour des données normales \cite{leys2013,iglewicz1993}. Les deux garde-fous (plancher de
+$\sigma$ et écart minimal) évitent les fausses alertes sur des métriques presque plates. La
+plage attendue $\tilde{x} \pm 3\sigma$ est enregistrée avec chaque mesure et affichée sur les
+courbes.
+
+\subsection{Exemple de calcul}
+
+Dix dernières valeurs du CPU d'un conteneur : 20, 21, 19, 20, 22, 20, 21, 19, 20, 21 ; nouvelle
+valeur : 75.
+\begin{enumerate}
+  \item Médiane $\tilde{x} = 20$.
+  \item Écarts à la médiane : 0, 1, 1, 0, 2, 0, 1, 1, 0, 1 ; leur médiane vaut 1, donc
+        $1{,}4826 \times 1 = 1{,}48$, relevé au plancher $\sigma = 2$.
+  \item $z = (75 - 20) / 2 = 27{,}5 > 3$ et l'écart de 55 dépasse 8 : la valeur est anormale.
+  \item Une alerte n'est créée que si l'anomalie dure 15 secondes (3 cycles), exactement comme
+        la durée \code{for} d'une règle.
+\end{enumerate}
+
+\subsection{Pourquoi la médiane plutôt que la moyenne}
+
+Avec la moyenne et l'écart-type, une anomalie durable \og se cache \fg{} : le saut lui-même
+augmente l'écart-type, ce qui fait chuter le score dès les mesures suivantes. La médiane et le
+MAD ne sont presque pas influencés par quelques valeurs extrêmes. Ce choix a été validé par une
+mesure présentée au chapitre~\ref{chap:devsecops} (section~\ref{sec:evaluation}).
+
+\section{Modèle de données}
+
+\diagramme[0.92\linewidth]{modele-donnees.pdf}{Modèle de données (principales tables)}{fig:mcd}
+
+Toutes les dates sont des entiers en millisecondes UTC. La base fonctionne en mode WAL
+(\emph{write-ahead logging}), qui permet au dashboard de lire pendant que l'agent écrit
+\cite{sqlite-wal}.
+
+\begin{table}[htbp]
+\centering
+\small
+\begin{tabularx}{\linewidth}{L{3.6cm}L{4.2cm}Y}
+\toprule
+\textbf{Table} & \textbf{Écrite par} & \textbf{Conservation} \\
+\midrule
+\code{metrics} & agent & 24 heures \\
+\code{metrics_1m} & agent (agrégats par minute) & 7 jours \\
+\code{alerts} & agent (détection) et dashboard (acquittement, résolution manuelle) & 30 jours après résolution \\
+\code{notifications_outbox} & agent et dashboard, dans la même transaction que l'alerte & 7 jours après traitement \\
+\code{rules}, \code{settings} & dashboard (initialisation des règles par l'agent) & permanente \\
+\code{users}, \code{sessions} & dashboard & sessions expirées supprimées \\
+\code{schema_version}, \code{app_meta} & les deux / agent & permanente \\
+\bottomrule
+\end{tabularx}
+\caption{Propriété et conservation des tables}
+\label{tab:tables}
+\end{table}
+
+\subsection{Migrations versionnées}
+
+Le schéma est défini une seule fois, dans des fichiers SQL numérotés
+(\nolinkurl{shared/migrations/001_init.sql}). L'agent (Python) et le dashboard (Node.js) exécutent
+les mêmes fichiers au démarrage, sous un verrou d'écriture exclusif (\code{BEGIN IMMEDIATE}) :
+celui qui démarre en premier applique les migrations manquantes, l'autre constate qu'il n'y a
+rien à faire. La migration 001 met également à niveau une base de la version 0.1 en conservant
+les utilisateurs, les règles et les paramètres.
+
+\subsection{Outbox transactionnelle}
+
+Enregistrer une alerte et envoyer sa notification sont deux actions distinctes : un arrêt entre
+les deux ferait perdre la notification. Le patron \emph{transactional outbox}
+\cite{outbox} résout ce problème : l'alerte et une ligne de notification sont écrites dans la
+même transaction, puis un processus indépendant livre les notifications en attente et réessaie
+en cas d'échec. La livraison est dite \og au moins une fois \fg{} : un doublon est possible
+après un échec partiel, une perte ne l'est pas.
+
+\section{Diagramme de séquence du cycle de détection}
+
+\diagramme[0.85\linewidth]{seq-detection.pdf}{Diagramme de séquence du cycle de détection}{fig:seq-detection}
+
+
+L'authentification (vérification de l'empreinte, création d'une session, ouverture du WebSocket avec le jeton) et l'acquittement suivent le même principe : le dashboard écrit l'action de l'opérateur dans la base, que l'agent prend en compte au cycle suivant.
+
+\begin{conclusionchapitre}
+La conception repose sur un contrat simple entre deux programmes (la base de données), un
+cycle de vie des alertes explicite et une détection extensible. Le chapitre suivant présente sa
+réalisation.
+\end{conclusionchapitre}

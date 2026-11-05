@@ -1,0 +1,45 @@
+\chapter*{Résumé}
+\thispagestyle{plain}
+
+Ce rapport présente le travail réalisé au sein de \entreprise\ dans le cadre de mon stage :
+la conception et la réalisation de \textbf{SentinelOps}, une plateforme auto-hébergée de
+supervision et d'alerte pour serveurs et conteneurs Docker. L'objectif est de remplacer
+l'assemblage habituel de plusieurs outils (Prometheus, Alertmanager, Grafana) par une
+solution qui se déploie en une seule commande et qui produit des alertes expliquées.
+
+La plateforme collecte toutes les cinq secondes les métriques de l'hôte, des conteneurs et
+de tout exportateur Prometheus. Elle détecte les incidents par des règles de seuil et par un
+détecteur statistique d'anomalies (score z robuste fondé sur la médiane et l'écart absolu
+médian). Un automate d'états (en attente, déclenchée, résolue) élimine les pics
+transitoires, regroupe les alertes en incidents et les résout automatiquement. Les
+notifications Slack et e-mail sont fiabilisées par le patron \og transactional outbox \fg{}.
+La solution applique une sécurité par défaut (API fermée par défaut, sessions hachées et
+expirables, accès Docker filtré par des proxies, conteneurs non privilégiés) et s'appuie sur
+une chaîne d'intégration continue avec 51 tests automatisés et l'analyse de vulnérabilités.
+
+\medskip
+\noindent\textbf{Mots-clés :} supervision, alerting, détection d'anomalies, Docker,
+DevSecOps, intégration continue, observabilité.
+
+\vspace{0.3cm}
+\begin{otherlanguage}{english}
+\section*{Abstract}
+This report presents the work carried out at \entreprise\ during my internship: the design
+and implementation of \textbf{SentinelOps}, a self-hosted monitoring and alerting platform for
+servers and Docker containers. Its goal is to replace the usual combination of several tools
+(Prometheus, Alertmanager, Grafana) with a solution deployed in a single command that
+produces explained alerts.
+
+The platform collects host, container and Prometheus exporter metrics every five seconds. It
+detects incidents with threshold rules and a statistical anomaly detector (a robust z-score
+based on the median and the median absolute deviation). An alert state machine (pending,
+firing, resolved) filters transient spikes, groups alerts into incidents and resolves them
+automatically. Slack and e-mail notifications are made reliable with the transactional
+outbox pattern. The solution is secure by default (deny-by-default API, hashed and expiring
+sessions, Docker access filtered by proxies, unprivileged containers) and relies on a
+continuous integration pipeline with 51 automated tests and vulnerability scanning.
+
+\medskip
+\noindent\textbf{Keywords:} monitoring, alerting, anomaly detection, Docker, DevSecOps,
+continuous integration, observability.
+\end{otherlanguage}

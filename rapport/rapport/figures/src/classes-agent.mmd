@@ -1,0 +1,71 @@
+classDiagram
+  direction LR
+  class Signal {
+    +rule_id: str
+    +detector: str
+    +entity_id: str
+    +metric_name: str
+    +severity: str
+    +summary: str
+    +for_seconds: int
+    +evidence: dict
+    +key() tuple
+  }
+  class Detector {
+    <<interface>>
+    +name: str
+    +detect(metrics) list~Signal~
+  }
+  class ThresholdDetector {
+    -rules: list
+    +set_rules(db_rules)
+    +detect(metrics) list~Signal~
+  }
+  class AnomalyDetector {
+    -window_size: int = 30
+    -k_threshold: float = 3.0
+    -min_noise_floor: float = 2.0
+    -min_abs_delta: float = 8.0
+    +enabled: bool
+    +evaluate_metric(entity, metric, value) dict
+    +detect(metrics) list~Signal~
+  }
+  class AlertManager {
+    -pending: dict
+    +process(signals, now_ms) dict
+  }
+  class Pending {
+    +since_ms: int
+    +hits: int
+  }
+  class IncidentCorrelator {
+    -window_ms: int
+    +correlate(entity, started_at, open_alerts) str
+  }
+  class DatabaseManager {
+    +init_db(migrations_dir)
+    +transaction()
+    +insert_metrics(metrics, ts)
+    +get_open_alerts() list
+    +open_alert(alert) int
+    +touch_alert(id, ts, summary, evidence)
+    +resolve_alert(id, ts) bool
+    +seed_rules(rules, force)
+  }
+  class Collector {
+    <<interface>>
+    +collect() list~dict~
+  }
+  class HostCollector
+  class DockerCollector
+  class PrometheusCollector
+  Detector <|.. ThresholdDetector
+  Detector <|.. AnomalyDetector
+  Collector <|.. HostCollector
+  Collector <|.. DockerCollector
+  Collector <|.. PrometheusCollector
+  Detector ..> Signal : produit
+  AlertManager ..> Signal : consomme
+  AlertManager o-- Pending
+  AlertManager --> IncidentCorrelator
+  AlertManager --> DatabaseManager

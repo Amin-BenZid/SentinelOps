@@ -46,7 +46,7 @@ Requires Docker (Desktop on Windows/macOS) and Python 3.8+.
 | `sen run [--public] [--port N] [--no-build]` | build + start + wait until ready (`--public` on a server) |
 | `sen status` | containers, dashboard and agent health |
 | `sen logs [agent\|dashboard]` | follow logs |
-| `sen password` | show the initial admin password |
+| `sen password [--reset]` | show the initial admin password, or set a new one if you are locked out |
 | `sen stop` / `sen restart` / `sen update` | stop (data kept) / restart / `git pull` + run |
 
 Plain Docker Compose still works: `docker compose up -d --build`.

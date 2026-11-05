@@ -1,0 +1,33 @@
+% Planning prévisionnel (à ajuster aux dates réelles du stage)
+\begin{ganttchart}[
+    hgrid, vgrid={*1{draw=black!12}},
+    x unit=0.82cm, y unit chart=0.62cm,
+    title label font=\sffamily\scriptsize,
+    bar label font=\sffamily\footnotesize,
+    group label font=\sffamily\footnotesize\bfseries,
+    milestone label font=\sffamily\footnotesize\itshape,
+    bar/.append style={fill=bleuSentinel!35, draw=bleuSentinel},
+    group/.append style={fill=bleuSentinel},
+    milestone/.append style={fill=rougeAfaire, draw=rougeAfaire}
+  ]{1}{16}
+  \gantttitle{Semaines du stage}{16} \\
+  \gantttitlelist{1,...,16}{1} \\
+  \ganttgroup{Étude}{1}{3} \\
+  \ganttbar{Étude de l'existant, besoins}{1}{2} \\
+  \ganttbar{Conception initiale}{2}{3} \\
+  \ganttgroup{Version 0.1 (Core)}{3}{8} \\
+  \ganttbar{Agent : collecte, règles}{3}{5} \\
+  \ganttbar{Dashboard : API, interface}{4}{7} \\
+  \ganttbar{Notifications Slack / e-mail}{6}{8} \\
+  \ganttmilestone{Prototype v0.1}{8} \\
+  \ganttgroup{Version 0.2 (refonte)}{9}{13} \\
+  \ganttbar{Revue de code, migrations, outbox}{9}{10} \\
+  \ganttbar{Automate d'alertes, anomalies}{10}{11} \\
+  \ganttbar{Sécurité, conteneurs durcis}{11}{12} \\
+  \ganttbar{Refonte de l'interface}{12}{13} \\
+  \ganttgroup{Industrialisation}{12}{16} \\
+  \ganttbar{Tests, CI, Trivy, Dependabot}{12}{14} \\
+  \ganttbar{Déploiement cloud / VPS}{14}{15} \\
+  \ganttbar{Rédaction du rapport}{13}{16} \\
+  \ganttmilestone{Soutenance}{16}
+\end{ganttchart}

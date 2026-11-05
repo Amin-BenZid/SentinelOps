@@ -6,7 +6,7 @@
     sen restart                                   stop + run
     sen status                                    containers + health
     sen logs [service]                            follow logs (agent | dashboard | ...)
-    sen password                                  show the initial admin password
+    sen password [--reset]                        show the initial admin password / set a new one
     sen update                                    git pull + run
     sen help
 
@@ -167,15 +167,53 @@ def public_ip():
 
 
 def initial_password(compose):
+    """Credentials of the account created on THIS volume, if the dashboard logs show it.
+
+    ADMIN_PASSWORD in .env is only used when the very first account is created.
+    If the volume already had an account (created earlier, password changed in
+    the UI...), .env is ignored, so we only trust what the logs say."""
     env = read_env()
-    if env.get("ADMIN_PASSWORD"):
-        return env.get("ADMIN_USERNAME", "admin"), env["ADMIN_PASSWORD"], "from .env"
     r = run_quiet(compose + ["logs", "--no-color", "dashboard"])
-    user = re.findall(r"username:\s*(\S+)", r.stdout)
-    pwd = re.findall(r"password:\s*(\S+)", r.stdout)
+    logs = r.stdout or ""
+    m = re.search(r'Admin user "([^"]+)" created from ADMIN_PASSWORD', logs)
+    if m and env.get("ADMIN_PASSWORD"):
+        return m.group(1), env["ADMIN_PASSWORD"], "from .env"
+    user = re.findall(r"username:\s*(\S+)", logs)
+    pwd = re.findall(r"password:\s*(\S+)", logs)
     if pwd:
         return (user[-1] if user else "admin"), pwd[-1], "generated on first start, change it at first login"
     return None, None, None
+
+
+RESET_JS = r"""
+import { DatabaseSync } from 'node:sqlite';
+import crypto from 'node:crypto';
+import { hashPassword } from '/app/src/services/passwords.js';
+const db = new DatabaseSync(process.env.DB_PATH);
+db.exec('PRAGMA busy_timeout = 10000');
+const u = db.prepare('SELECT id, username FROM users ORDER BY id LIMIT 1').get();
+if (!u) { console.log('NOUSER'); process.exit(2); }
+const salt = crypto.randomBytes(16).toString('hex');
+db.prepare('UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1 WHERE id = ?')
+  .run(hashPassword(process.env.NEW_PASSWORD, salt), salt, u.id);
+db.prepare('DELETE FROM sessions WHERE user_id = ?').run(u.id);
+console.log('USER=' + u.username);
+"""
+
+
+def reset_password(compose):
+    """Set a new random password on the admin account (forced change at next login)."""
+    import secrets
+    new = secrets.token_urlsafe(12)
+    r = run_quiet(compose + ["exec", "-T", "-e", f"NEW_PASSWORD={new}", "dashboard",
+                             "node", "--disable-warning=ExperimentalWarning", "--input-type=module", "-e", RESET_JS])
+    if r.returncode != 0 or "USER=" not in r.stdout:
+        die("Could not reset the password: " + (r.stderr.strip() or r.stdout.strip() or "is SentinelOps running?"),
+            "Start it first with: sen run")
+    user = r.stdout.split("USER=")[-1].strip()
+    # restart the dashboard so the failed-login counter (kept in memory) is cleared too
+    run_quiet(compose + ["restart", "dashboard"])
+    return user, new
 
 
 def docker_ready():
@@ -290,7 +328,7 @@ def cmd_run(args):
     if pwd:
         print(f"  Login       {bold(user)} / {bold(pwd)}  {dim('(' + source + ')')}")
     else:
-        print(f"  Login       {dim('use your existing account')}")
+        print(f"  Login       {dim('use your existing account')}  {dim('(forgot it? sen password --reset)')}")
     if public:
         print(yellow("  Exposed on all interfaces: make sure the firewall/security group only allows your IP."))
     print()
@@ -343,12 +381,19 @@ def cmd_logs(args):
         pass
 
 
-def cmd_password(_args):
-    user, pwd, source = initial_password(compose_cmd())
+def cmd_password(args):
+    compose = compose_cmd()
+    if "--reset" in args:
+        user, pwd = reset_password(compose)
+        print(green(f"{OK} Password reset") + dim("  (dashboard restarting, wait ~5 s)"))
+        print(f"  Login   {bold(user)} / {bold(pwd)}  {dim('(you will be asked to change it)')}")
+        return
+    user, pwd, source = initial_password(compose)
     if pwd:
         print(f"{bold(user)} / {bold(pwd)}  {dim('(' + source + ')')}")
     else:
-        print("No initial password found: an account already exists. Use your own credentials.")
+        print("An account already exists on this volume, so .env / generated passwords no longer apply.")
+        print("Use your own password, or set a new one with:  " + bold("sen password --reset"))
 
 
 def cmd_update(args):

@@ -1,0 +1,10 @@
+flowchart LR
+  PUSH(["push / pull request"]) --> A & S & U
+  A["<b>agent</b><br/>Python 3.11<br/>pytest · 37 tests"]
+  S["<b>server</b><br/>Node 24<br/>npm test · 14 tests<br/>npm audit (high)"]
+  U["<b>ui</b><br/>npm ci<br/>tsc + vite build"]
+  A & S & U --> IMG["<b>images</b> (matrice)<br/>build agent + dashboard<br/>cache GitHub Actions"]
+  IMG --> TRIVY{"Trivy<br/>CRITICAL / HIGH<br/>corrigeables ?"}
+  TRIVY -->|non| OK(["pipeline vert"])
+  TRIVY -->|oui| KO(["pipeline rouge"])
+  DEP["Dependabot<br/>PR hebdomadaires"] -.-> PUSH
