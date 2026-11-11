@@ -1,5 +1,5 @@
 # ── Stage 1: build dependencies into an isolated virtualenv ──
-FROM python:3.11-slim AS builder
+FROM python:3.15-slim AS builder
 RUN apt-get update \
  && apt-get install -y --no-install-recommends gcc python3-dev \
  && rm -rf /var/lib/apt/lists/*
@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r /tmp/requirements.txt \
 # No compiler, and no pip / setuptools / wheel: they are not needed to run the
 # agent and were the source of the HIGH CVEs Trivy reported (vendored
 # jaraco.context and wheel inside setuptools).
-FROM python:3.11-slim
+FROM python:3.15-slim
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
  && rm -rf /var/lib/apt/lists/* \
  && python -m pip uninstall -y setuptools wheel pip \
